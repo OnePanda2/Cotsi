@@ -1,0 +1,182 @@
+{
+  "skill_name": "cotsi",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/cotsi how HTTPS actually works\n\n(Memory: Cotsi prefs: style=characters; shows=The Office, The Big Bang Theory, Friends; visuals=on)",
+      "expected_output": "Learn mode: a compact Leverage Map for HTTPS, then trunk idea 1 taught with the Cotsi loop in characters style, ending with a question for the learner.",
+      "files": [],
+      "expectations": [
+        "Shows a Leverage Map with 3-7 numbered trunk ideas, each saying what it unlocks",
+        "The map includes a 'safe to ignore for now' list, an expert lens, and an anchor problem",
+        "Teaches exactly one trunk idea after the map, headed like '1/N'",
+        "The scene has a character voicing a real beginner misconception about HTTPS or encryption",
+        "A line (scene or plain) says where the analogy breaks",
+        "Technical terms appear in 'The real version', not in the explainer character's scene lines",
+        "Ends with one 'Your turn' question and one prediction question about the next idea",
+        "Contains at most one visual"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/cotsi machine learning",
+      "expected_output": "Broad topic, unknown goal, first run: one bundled set of tappable questions (goal, starting point, style) and no teaching yet.",
+      "files": [],
+      "expectations": [
+        "Asks about the learner's goal before building the map",
+        "Asks about the learner's starting point",
+        "Asks the one-time style question (sitcom scenes vs plain)",
+        "All questions are closed-ended with lettered or tappable options, and there are no more than 4",
+        "Does not start teaching machine learning content in this reply"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/cotsi options trading tonight. I have about 3 hours before bed and zero background.",
+      "expected_output": "Sprint mode: a Leverage Map and a time-boxed plan that includes sleep and next-morning review, then the first trunk idea.",
+      "files": [],
+      "expectations": [
+        "Includes a time-boxed sprint plan that fits roughly 3 hours",
+        "The plan includes sleep as part of the method and a next-morning /cotsi review",
+        "Mentions later reviews at growing intervals after the next-morning review",
+        "Presents a Leverage Map (or asks a single goal question first)",
+        "Sets expectations about what one night can achieve in one line, without promising full expertise"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/cotsi Atomic Habits",
+      "expected_output": "Book mode, non-fiction: Book Brief, a map of the book's thesis and core ideas, then the first core idea in plain style with a 'Try this today' plan.",
+      "files": [],
+      "expectations": [
+        "Opens with a Book Brief naming the title, James Clear and the year",
+        "States the book's thesis in one sentence",
+        "Lists 3-7 core ideas and what can be skimmed or skipped",
+        "Uses plain style, with no sitcom characters",
+        "Includes a 'Try this today' action phrased as 'When [situation], I will [action]'",
+        "Does not present invented direct quotations"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/cotsi 1984 by George Orwell",
+      "expected_output": "Book mode, fiction: checks for spoilers first, then maps the story's spine without sitcom crossovers.",
+      "files": [],
+      "expectations": [
+        "Asks whether the learner has finished the book before revealing the ending",
+        "Maps the premise and central conflict, the protagonist's arc, themes, symbols and historical context",
+        "Does not use sitcom characters"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice. You can return the answer in any order.\n\nclass Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:",
+      "expected_output": "LeetCode mode, hint ladder: restate the problem, give the pattern hint with the clue that signals it, and invite an attempt without showing code.",
+      "files": [],
+      "expectations": [
+        "Restates the problem in one line",
+        "Gives a pattern hint pointing to a hash map or set, with the clue in the statement that signals it",
+        "Does not show the full code solution",
+        "Invites the learner to try an approach or paste code"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "just give me the full solution for leetcode 15. 3Sum in python, I already attempted it and I'm reviewing",
+      "expected_output": "LeetCode mode, full solution format with pattern triggers and practice problems.",
+      "files": [],
+      "expectations": [
+        "Includes the sections Problem Understanding, Approach, Algorithm, Code, Line-by-Line, Dry Run, Complexity and Edge Cases, in that order",
+        "The code defines class Solution with a threeSum method that takes nums and returns a list of triplets",
+        "Uses sorting plus two pointers and skips duplicates",
+        "States O(n^2) time complexity",
+        "Includes a Pattern Triggers section",
+        "Practice Next suggests one same-pattern problem and one similar-looking problem that needs a different pattern"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/cotsi course on becoming a data analyst. I can do about 5 hours a week.",
+      "expected_output": "Course mode, assessment only: one batch of at most six tappable questions, including two diagnostic knowledge checks, without re-asking the weekly time.",
+      "files": [],
+      "expectations": [
+        "Asks a single batch of at most 6 questions",
+        "Does not ask again how many hours per week the learner has",
+        "Includes at least two diagnostic questions that test real knowledge (for example, what a query or formula returns)",
+        "Does not present the roadmap or milestones before the answers arrive"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "/cotsi review\n\n(Memory:\nCotsi log: HTTPS | learned 2026-09-20 | weak: certificate chains | next review 2026-09-27 (step 3d)\nCotsi log: Recursion | learned 2026-09-25 | weak: none | next review 2026-09-26 (step 1d)\nCotsi log: Options trading | learned 2026-09-27 | weak: theta | next review 2026-10-04 (step 7d)\nToday is 2026-09-28.)",
+      "expected_output": "Review mode: a mixed quiz over the two due topics (HTTPS, Recursion), weighted to weak spots, asking for confidence.",
+      "files": [],
+      "expectations": [
+        "Quizzes HTTPS and Recursion, and not Options trading, which isn't due",
+        "Mixes the two topics rather than grouping them",
+        "Includes at least one question on certificate chains",
+        "Asks 3-5 numbered questions and requests a 1-5 confidence rating",
+        "Does not re-teach content before the learner answers"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "/cotsi change character to Saul Goodman from Better Call Saul",
+      "expected_output": "Settings command: confirm the change in one line and update the preference; no lesson.",
+      "files": [],
+      "expectations": [
+        "Confirms that Saul Goodman will now do the explaining",
+        "Updates or records the Cotsi prefs line",
+        "Does not start teaching a topic"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "/cotsi plain recursion",
+      "expected_output": "Learn mode in plain style: a small map, then trunk idea 1 with the trap, the analogy and where it breaks.",
+      "files": [],
+      "expectations": [
+        "Uses no sitcom characters or dialogue",
+        "Includes 'The trap', an analogy, and where the analogy breaks",
+        "Shows a Leverage Map sized to the topic",
+        "Ends with a 'Your turn' question"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "can you teach me recursion? i keep getting lost in the call stack whenever i trace it",
+      "expected_output": "Learn mode (not Course mode): targets the call-stack confusion directly and ends with a question.",
+      "files": [],
+      "expectations": [
+        "Does not start a course assessment or ask about weekly time",
+        "Addresses how the call stack works, or the learner's call-stack confusion, within the first trunk ideas",
+        "Ends with a question the learner must answer"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "/cotsi quick blockchain, I have a meeting in 20 min",
+      "expected_output": "Quick depth: one reply, no questions up front, the map with the assumed goal named, every trunk idea in a few lines, and a three-question check.",
+      "files": [],
+      "expectations": [
+        "Does not ask any question before teaching",
+        "Names the assumed goal in the map header",
+        "Covers every trunk idea in this single reply, each in about 3-5 lines",
+        "Ends with a three-question check"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "[Earlier in this conversation, Cotsi taught trunk idea 1/4 of HTTPS, 'Public-key encryption', using a padlock analogy, and asked: 'Why can anyone snap the padlock shut, but only you can open it?']\n\nLearner: because the padlock is really strong. confidence 5",
+      "expected_output": "Feedback and mastery gate: flags a confident miss, re-teaches from a new angle, and asks a new question on the same idea without advancing.",
+      "files": [],
+      "expectations": [
+        "Gives a not-yet or partly verdict rather than marking the answer correct",
+        "Points out that this was a confident miss",
+        "Re-explains using a different analogy or example than the padlock",
+        "Asks a new question on public-key encryption",
+        "Does not start trunk idea 2"
+      ]
+    }
+  ]
+}
