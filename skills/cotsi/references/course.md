@@ -15,7 +15,8 @@ going across many conversations.
 
 Ask everything in a single tappable batch: use `ask_user_input_v0` or an equivalent tool where
 available, and lettered options otherwise. Skip any question the learner has already answered in
-their request. Ask at most six questions:
+their request. If the goal is strongly implied ("becoming a data analyst"), state your reading and
+invite a correction instead of asking. Ask at most six questions:
 - **Goal:** A) Get a job or change careers B) Start or grow a business C) Build a specific product
   D) Improve at my current role E) Academic mastery F) Personal interest
 - **Time per week:** A) About 2 hours B) About 5 C) About 10 D) 20 or more
@@ -71,7 +72,8 @@ needs a build-fast, ship-it path. Treat the goal answer as load-bearing.
 - **Skipping a milestone:** act like a mentor managing trade-offs, not a teacher enforcing a
   syllabus. Say whether skipping is safe, which later milestones depend on it, and whether a
   condensed version would keep the dependency while saving time. Then let the learner decide.
-- **Saving:** at the end of every milestone, update the memory line
+- **Saving:** write the memory line as soon as the roadmap is shown, and update it at the end of
+  every milestone:
   `Cotsi course: [topic] | goal: … | milestone k/N | next: … | updated [date]` and print a
   💾 save line. `/cotsi resume` picks it up in any conversation.
 - Keep the pacing to one step at a time. Don't pack several milestones into one reply.

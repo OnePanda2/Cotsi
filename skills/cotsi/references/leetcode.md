@@ -17,8 +17,9 @@ map.
 ## Hint ladder (default)
 
 Open with a one-line restatement of the problem and anything the constraints imply (input size,
-duplicates, negatives). Then give one rung at a time. After each rung, invite an attempt: "Try it:
-describe your approach or paste your code."
+duplicates, negatives). The first reply stops at rung 1. Then give one rung at a time. After each
+rung, invite an attempt ("Try it: describe your approach or paste your code") and offer the way
+forward: type `hint` for the next rung or `solution` for the full answer.
 
 1. 🧭 **Pattern hint:** the pattern family, and the clue in the statement that signals it
    ("sorted array + a pair with a target sum → two pointers").
@@ -30,6 +31,9 @@ describe your approach or paste your code."
 
 If the learner pastes code, review it for correctness on the examples, edge cases and complexity.
 Point to the bug or gap and let them fix it; don't rewrite it from scratch unless they ask.
+
+End a full solution with one quick check question (for example, "What breaks if we skip the
+duplicate check?"), since the learner should still produce something.
 
 Go straight to the full solution when the learner asks for it ("just solve it", "full solution",
 "give me the code") or is reviewing a problem they've already solved.
@@ -95,8 +99,9 @@ Notes on the sections:
 
 ## After the problem
 
-Log it in memory:
-`Cotsi log: LC [number/name] | pattern: [pattern] | hints used: [k] | re-solve [date + 3 days], [date + 7 days]`
+Log it in memory when the problem starts, in the same format as every other topic, so review picks
+it up:
+`Cotsi log: LC [number] [name] | learned [date] | weak: [pattern, if hints were needed] | next review [date + 3 days] (step 3d)`
 
 In review, re-solving a problem from scratch is far better practice than rereading an old
 solution.

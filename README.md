@@ -5,7 +5,7 @@ Cotsi finds the vital 20% of ideas that unlock the other 80%, teaches those firs
 scenes, or in plain style), makes you use each idea right away, and brings it back over the next
 few days so it sticks.
 
-The current version is **6.0**: `cotsi 6.0.skill`. The source lives in `skills/cotsi/`.
+The current version is **6.1**: `cotsi 6.1.skill`. The source lives in `skills/cotsi/`.
 
 ## How a lesson goes
 
@@ -25,10 +25,10 @@ The current version is **6.0**: `cotsi 6.0.skill`. The source lives in `skills/c
 
 ## Install (claude.ai)
 
-1. Download `cotsi 6.0.skill` from this repo.
+1. Download `cotsi 6.1.skill` from this repo.
 2. Upload it in Claude's Skills settings, the same place you uploaded earlier versions, replacing
    the old `cotsi`.
-3. Turn off `cotsi-books`, `cotsi-no-characters` and `leetcode-helper`. Version 6.0 includes all
+3. Turn off `cotsi-books`, `cotsi-no-characters` and `leetcode-helper`. Version 6.1 includes all
    three, and leaving them on makes them compete for the same requests.
 
 ## Commands
@@ -57,7 +57,7 @@ skills/cotsi/            source of the current version
                          characters, visuals, deep-dive
   evals/                 test prompts and a personal learning log (not packaged)
 build.py                 validates skills/cotsi and builds "cotsi <version>.skill"
-cotsi 6.0.skill          the file to upload
+cotsi 6.1.skill          the file to upload
 cotsi*.skill (older)     earlier versions and the merged forks, kept for history
 CHANGELOG.md             what changed in each version
 ```
@@ -77,7 +77,7 @@ CHANGELOG.md             what changed in each version
 - **Learning:** `skills/cotsi/evals/learning-log.md` tracks your own day-1 and day-7 quiz scores
   per topic. Retention at day 7 is the number that matters.
 
-## The science behind 6.0
+## The science behind 6.1
 
 - Experts organize knowledge around core concepts: [How People Learn (National Research Council, 2000)](https://nap.nationalacademies.org/catalog/9853/how-people-learn-brain-mind-experience-and-school-expanded-edition); threshold concepts ([Meyer & Land](https://link.springer.com/article/10.1007/s10734-004-6779-5))
 - Practice testing and spaced practice are the two "high utility" techniques: [Dunlosky et al. 2013](https://journals.sagepub.com/doi/abs/10.1177/1529100612453266)

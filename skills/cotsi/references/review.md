@@ -19,7 +19,9 @@ answers from memory and then gets feedback, are what make learning durable. Keep
    the learner answers it correctly once.
 5. **Reschedule:** the first review comes 1 day after learning. Each time a topic is answered
    well, the gap to its next review grows: 3 days, then 7, 21 and 60. A missed idea goes back to a
-   1-day gap. Update the `Cotsi log` line.
+   1-day gap. Count gaps from the day of the review, even for overdue topics. The `(step Nd)` field
+   holds the gap just scheduled, and `weak:` holds the ideas missed so far. Update the `Cotsi log`
+   line.
 
 ## /cotsi quiz me on [topic]
 

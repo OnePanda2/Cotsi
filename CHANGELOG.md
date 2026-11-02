@@ -1,5 +1,25 @@
 # Changelog
 
+## 6.1 — 2026-11-02
+
+Clarifications from the first round of independent tests (v6.0 scored 96% vs v5.2's 41% on 14
+test prompts; the test runners flagged where the instructions were ambiguous).
+
+- The goal question is asked only when the vital 20% would change by goal; otherwise Cotsi assumes
+  the common goal and names it. Quick and Sprint never stop to ask.
+- Memory lines are saved silently and never shown in the lesson.
+- Books stay plain even with a characters preference, unless scenes are asked for in a book lesson.
+- Fiction: the brief stays to the premise, a three-way spoiler question comes first, and fiction
+  gets an anchor question and a theme-to-today Unlock Test.
+- The word budget applies to the idea; the first reply may run about 150 words longer for the map.
+- Quick mode: at most about 700 words, no scenes, and under 45 minutes means quick, not Sprint.
+- LeetCode: the first reply stops at rung 1 and offers `hint` or `solution`; a full solution ends
+  with one check question; LeetCode problems use the same log line as other topics.
+- Course: an implied goal is stated rather than asked; the memory line is written at the roadmap.
+- Review: gaps count from the review day, even for overdue topics.
+- Changing character replaces the show list and keeps other settings.
+- Money, health and legal topics get a one-line "education, not advice" note.
+
 ## 6.0 — 2026-09-28
 
 A rewrite around one goal: learn anything in the least time, and keep it. It merges `cotsi` 5.2,

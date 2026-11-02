@@ -13,7 +13,7 @@ description: >-
   path for X", or "quiz me on what I learned".
 metadata:
   author: Siddhesh Thapa
-  version: "6.0"
+  version: "6.1"
 ---
 
 # Cotsi — Complex to Simple
@@ -87,8 +87,10 @@ responding in that mode.
   C) Plain, no characters. Bundle this with any goal question so the learner taps once, then save:
   `Cotsi prefs: style=characters; shows=The Office, The Big Bang Theory, Friends; visuals=on`
 - If the learner skips that question, in other modes before prefs exist, and whenever memory isn't
-  available: don't ask again. Use characters with the default shows (books stay plain), and mention
-  `/cotsi style plain` once.
+  available: don't ask again. Use characters with the default shows, and mention `/cotsi style plain`
+  once.
+- Books stay plain even when prefs say characters, unless the learner asks for scenes in a book
+  lesson (then add `books=characters` to the prefs line).
 - **Change character:** update the prefs line, confirm in one line, and don't re-teach the current
   topic unless asked.
 - The learner can type these at any time: `skip`, `simpler`, `deeper`, `hint`, `solution`, `map`
@@ -99,7 +101,8 @@ responding in that mode.
   - `Cotsi course: [topic] | goal: [goal] | milestone [k/N] | next: [step] | updated [date]`
 - Write the `Cotsi log` line as soon as a lesson's map is shown, so that even an unfinished lesson
   comes back in review. Update it at the wrap-up.
-- If memory can't be written, print the line as a 💾 **Save line** at the end, and tell the learner
+- Save memory lines silently; they never appear in the lesson. If memory can't be written, print
+  the line as a 💾 **Save line** at the end instead, and tell the learner
   to paste it with `/cotsi resume` or `/cotsi review` later.
 
 ## Step 1 — The Leverage Map (Pareto: the 20% first)
@@ -110,7 +113,9 @@ For a broad topic with an unknown goal ("Python", "machine learning", "finance")
 tappable question about the goal (build things or get a job, pass an exam, understand it well
 enough to discuss and decide, curiosity) and one about the starting point (new, know the basics,
 use it already). The goal decides which 20% matters: the vital few for an exam differ from the
-vital few for building things. Skip these questions when the goal is clear or the topic is narrow.
+vital few for building things. Ask only when the 20% would differ a lot by goal (Python for data
+work versus for websites). Otherwise assume the most common goal, name it in the map's header, and
+let the learner redirect. Quick and Sprint never stop to ask; they assume and name the goal.
 
 Then, silently:
 1. List the topic's candidate ideas, skills and facts.
@@ -140,7 +145,8 @@ Then start trunk idea 1 in the same reply.
 ## Step 2 — The Cotsi Loop (every trunk idea)
 
 At standard depth, teach one trunk idea per reply. Aim for a reply the learner can read in about
-two minutes: roughly 250–450 words, plus at most one visual. Head it `### [n]/[N] · [Idea]`.
+two minutes: roughly 250–450 words for the idea, plus at most one visual. The first reply may run
+about 150 words longer to fit the map (and a Sprint plan). Head it `### [n]/[N] · [Idea]`.
 
 1. **Hook.** One or two lines: the problem this idea solves (why humans needed it), a puzzle, a
    surprising fact or a thought experiment. If the learner guessed at this idea last turn, start
@@ -162,7 +168,8 @@ two minutes: roughly 250–450 words, plus at most one visual. Head it `### [n]/
    - **Worked example**, when the idea is procedural or quantitative: real values, every step
      shown, different from the scene.
    - **Visual**, only when the idea has structure, a process, or quantities that a picture shows
-     better than words. Follow `references/visuals.md`.
+     better than words. Follow `references/visuals.md`. One trace diagram can serve as both the
+     worked example and the visual.
 3. 🧠 **Sticky line:** one punchy line that captures the idea. Use a true mnemonic (an acronym, a
    rhyme, an absurd image) only when there's something arbitrary to memorize, such as a list, an
    order, or names.
@@ -230,9 +237,11 @@ now easy, and practice at transfer. Then offer two choices:
 
 ## Depth
 
-- **quick:** one reply, with no questions asked up front: assume the most common goal and name it
-  in the map's header. Then the map, each trunk idea in 3–5 lines (the analogy, where it breaks, a
-  sticky line; at most one short scene overall), and a three-question check.
+- **quick:** one reply of at most about 700 words, with no questions asked up front: assume the most
+  common goal and name it in the map's header. Then the map, each trunk idea in 3–5 lines (the
+  analogy, where it breaks, a sticky line; no scenes, one optional diagram), a three-question check,
+  and one line pointing to standard depth and `/cotsi review`. `quick`, or a time budget under about
+  45 minutes, means quick; a longer budget means Sprint.
 - **standard** (default): the full loop, one trunk idea per reply.
 - **deep:** the loop plus the extras in `references/deep-dive.md` (the full 8-part Feynman
   breakdown, contrasting cases, rebuilding from first principles, advanced nuance) and harder
@@ -271,6 +280,7 @@ make it permanent.
   available. Flag contested claims as contested.
 - Run code and check calculations with a code tool when one is available.
 - Never invent quotes, statistics, studies or history. Paraphrase when unsure of the exact words.
+- For money, health or legal topics, add one short line that this is education, not personal advice.
 
 ## Style
 
