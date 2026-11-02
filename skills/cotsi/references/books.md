@@ -47,8 +47,9 @@ idea rests on shaky evidence.
 
 ## Fiction: the story's spine
 
-First ask whether the learner has finished the book, so you don't spoil it. Then map the story's
-spine:
+Keep the Book Brief to the premise, then ask before mapping anything else: A) I've finished it
+B) I'm reading it now (no spoilers) C) I won't read it, spoilers are fine. Then map the story's
+spine, leaving out anything past the learner's point in the book:
 - The premise and the central conflict
 - The protagonist's arc: who they are at the start versus the end
 - 2–4 themes, with the scenes that carry them
@@ -57,7 +58,9 @@ spine:
 
 Teach each element with the loop, in plain style. Good questions for fiction ask the learner to
 interpret ("Why does Winston…?"), to connect ("Where do you see this today?"), or, for a reader
-partway through the book, to predict (without spoilers).
+partway through the book, to predict (without spoilers). Use an anchor question about why the book
+still matters, and in the Unlock Test ask the learner to apply a theme to something happening
+today.
 
 ## Pacing and wrap-up
 

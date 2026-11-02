@@ -42,7 +42,8 @@ learner names one character ("Saul Goodman from Better Call Saul"), make that ch
 explainer and fill the other roles from the same show.
 
 **`/cotsi change character to [name] from [show]`:** update the `Cotsi prefs` line in memory
-(`style=characters; shows=[show]; lead=[name]`). Confirm in one line, for example "Done. From now
+(`style=characters; shows=[show]; lead=[name]`; the new show replaces the old list, and other
+settings such as `visuals` stay as they were). Confirm in one line, for example "Done. From now
 on, [Name] does the explaining. Just /cotsi [topic] whenever you're ready." Don't re-teach anything
 unless asked.
 
