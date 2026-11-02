@@ -14,7 +14,10 @@
         "A line (scene or plain) says where the analogy breaks",
         "Technical terms appear in 'The real version', not in the explainer character's scene lines",
         "Ends with one 'Your turn' question and one prediction question about the next idea",
-        "Contains at most one visual"
+        "Contains at most one visual",
+        "The HTTPS facts taught are technically correct (no claim like 'HTTPS encrypts all traffic with the site's public key')",
+        "The 'where it breaks' line names a limit the learner could plausibly over-apply, not a trivial surface difference",
+        "Internal bookkeeping (memory writes, routing notes) is not shown to the learner as raw text"
       ]
     },
     {
@@ -36,11 +39,12 @@
       "expected_output": "Sprint mode: a Leverage Map and a time-boxed plan that includes sleep and next-morning review, then the first trunk idea.",
       "files": [],
       "expectations": [
-        "Includes a time-boxed sprint plan that fits roughly 3 hours",
+        "Includes a time-boxed plan for roughly 3 hours that reserves time for checks or a test and a wrap-up, not only content blocks",
         "The plan includes sleep as part of the method and a next-morning /cotsi review",
         "Mentions later reviews at growing intervals after the next-morning review",
         "Presents a Leverage Map (or asks a single goal question first)",
-        "Sets expectations about what one night can achieve in one line, without promising full expertise"
+        "Sets honest expectations briefly (a sentence or two) without promising full expertise in one night",
+        "The options facts taught (payoffs, breakevens, any answer key) are correct"
       ]
     },
     {
@@ -54,17 +58,18 @@
         "Lists 3-7 core ideas and what can be skimmed or skipped",
         "Uses plain style, with no sitcom characters",
         "Includes a 'Try this today' action phrased as 'When [situation], I will [action]'",
-        "Does not present invented direct quotations"
+        "Any quotation attributed to James Clear is accurate, or ideas are paraphrased and attributed rather than quoted",
+        "Ends with a comprehension check for the learner (a question, explain-back or prediction)"
       ]
     },
     {
       "id": 5,
       "prompt": "/cotsi 1984 by George Orwell",
-      "expected_output": "Book mode, fiction: checks for spoilers first, then maps the story's spine without sitcom crossovers.",
+      "expected_output": "Book mode, fiction: asks the spoiler question first and keeps any brief to the premise; no sitcom crossovers.",
       "files": [],
       "expectations": [
         "Asks whether the learner has finished the book before revealing the ending",
-        "Maps the premise and central conflict, the protagonist's arc, themes, symbols and historical context",
+        "Before the spoiler answer, describes only the premise and setup, without revealing the ending or later plot turns",
         "Does not use sitcom characters"
       ]
     },
@@ -77,7 +82,9 @@
         "Restates the problem in one line",
         "Gives a pattern hint pointing to a hash map or set, with the clue in the statement that signals it",
         "Does not show the full code solution",
-        "Invites the learner to try an approach or paste code"
+        "Invites the learner to try an approach or paste code",
+        "Stops at the pattern rung: does not spell out the full algorithm (complement lookup plus check-before-insert) in prose",
+        "Offers a clear next step: another hint or the full solution on request"
       ]
     },
     {
@@ -91,7 +98,9 @@
         "Uses sorting plus two pointers and skips duplicates",
         "States O(n^2) time complexity",
         "Includes a Pattern Triggers section",
-        "Practice Next suggests one same-pattern problem and one similar-looking problem that needs a different pattern"
+        "Practice Next suggests at least one same-pattern problem and at least one similar-looking problem that needs a different pattern",
+        "Honors the request for the full solution: no hint ladder or gating questions before the code",
+        "The code returns correct results on LeetCode's examples and on duplicate-heavy input such as [0,0,0,0] and [-2,0,0,2,2]"
       ]
     },
     {
@@ -103,7 +112,8 @@
         "Asks a single batch of at most 6 questions",
         "Does not ask again how many hours per week the learner has",
         "Includes at least two diagnostic questions that test real knowledge (for example, what a query or formula returns)",
-        "Does not present the roadmap or milestones before the answers arrive"
+        "Does not present the roadmap or milestones before the answers arrive",
+        "Each diagnostic question has exactly one correct option"
       ]
     },
     {
@@ -116,7 +126,8 @@
         "Mixes the two topics rather than grouping them",
         "Includes at least one question on certificate chains",
         "Asks 3-5 numbered questions and requests a 1-5 confidence rating",
-        "Does not re-teach content before the learner answers"
+        "Does not re-teach content before the learner answers",
+        "Says how the schedule will update after the answers (or that it will)"
       ]
     },
     {
@@ -126,8 +137,9 @@
       "files": [],
       "expectations": [
         "Confirms that Saul Goodman will now do the explaining",
-        "Updates or records the Cotsi prefs line",
-        "Does not start teaching a topic"
+        "Records a prefs line naming Better Call Saul and Saul Goodman as the lead, keeping other settings such as visuals",
+        "Does not start teaching a topic",
+        "The reply is short (under about 60 words) and asks no follow-up questions"
       ]
     },
     {
@@ -138,8 +150,9 @@
       "expectations": [
         "Uses no sitcom characters or dialogue",
         "Includes 'The trap', an analogy, and where the analogy breaks",
-        "Shows a Leverage Map sized to the topic",
-        "Ends with a 'Your turn' question"
+        "Shows a Leverage Map of 2-5 trunk ideas (recursion is a narrow topic)",
+        "The reply includes a 'Your turn' question for the learner (other closing lines may follow it)",
+        "Teaches only the first trunk idea in this reply"
       ]
     },
     {
@@ -150,7 +163,7 @@
       "expectations": [
         "Does not start a course assessment or ask about weekly time",
         "Addresses how the call stack works, or the learner's call-stack confusion, within the first trunk ideas",
-        "Ends with a question the learner must answer"
+        "Ends with a comprehension question the learner must answer, which doesn't give away its own answer"
       ]
     },
     {
@@ -161,8 +174,10 @@
       "expectations": [
         "Does not ask any question before teaching",
         "Names the assumed goal in the map header",
-        "Covers every trunk idea in this single reply, each in about 3-5 lines",
-        "Ends with a three-question check"
+        "Covers every trunk idea in this single reply",
+        "Ends with a three-question check",
+        "Each trunk idea's text is short (about 3-5 lines, not counting one optional diagram)",
+        "The whole reply can be read in under about 5 minutes (roughly 900 words or fewer)"
       ]
     },
     {
