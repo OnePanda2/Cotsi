@@ -7,7 +7,22 @@ import { makeMockClaude } from "./src/mock.ts";
 import { SupabaseStore } from "./src/store.ts";
 
 const env = readEnv((name) => Deno.env.get(name));
-const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+
+/** The server-side key. Supabase provides it to every function; the name depends on the project's key type. */
+function serviceKey(): string {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+    const key = keys.default ?? Object.values(keys)[0];
+    if (typeof key === "string" && key) return key;
+  } catch {
+    // not set, or not JSON: fall through to the older variable
+  }
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("COTSI_SERVICE_KEY");
+  if (!key) throw new Error("No Supabase server key found (SUPABASE_SECRET_KEYS, SUPABASE_SERVICE_ROLE_KEY or COTSI_SERVICE_KEY).");
+  return key;
+}
+
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 

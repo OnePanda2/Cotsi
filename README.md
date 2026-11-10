@@ -7,6 +7,18 @@ few days so it sticks.
 
 The current version is **6.1**: `cotsi 6.1.skill`. The source lives in `skills/cotsi/`.
 
+## The website
+
+Cotsi also runs as a website at **cotsi.siddheshthapa.com**, with three ways in:
+
+- **Learn a topic** and **Understand a book** teach with the skill in this repo.
+- **Get job-ready** starts from your CV. It finds roles likely to be in demand in the next 3 to 6
+  months, builds a syllabus of only what you're missing, teaches it milestone by milestone, then
+  finds live openings and the edge you have over other applicants.
+
+The pages are in `web/` (GitHub Pages) and the API is in `supabase/functions/api/` (a Supabase
+Edge Function that calls the Claude API). [SETUP.md](SETUP.md) has the steps to put it live.
+
 ## How a lesson goes
 
 1. **🗺️ Leverage Map.** Cotsi picks the 3–7 "trunk" ideas that most of the field depends on,
@@ -58,6 +70,12 @@ skills/cotsi/            source of the current version
   evals/                 test prompts and a personal learning log (not packaged)
 build.py                 validates skills/cotsi and builds "cotsi <version>.skill"
 cotsi 6.1.skill          the file to upload
+web/                     the website's pages (Vite + React), deployed to GitHub Pages
+supabase/functions/api/  the website's API (Supabase Edge Function, calls the Claude API)
+supabase/migrations/     the database table the API uses
+dev/server.ts            a local test server with canned AI replies
+tests/api_test.ts        API tests
+SETUP.md                 how to put the website live
 cotsi*.skill (older)     earlier versions and the merged forks, kept for history
 CHANGELOG.md             what changed in each version
 ```
