@@ -60,11 +60,13 @@ export function makeClaude(apiKey: string): ClaudeRunner {
         system: opts.system,
         messages,
         cache_control: { type: "ephemeral" },
-        output_config: {
+      };
+      if (opts.effort || opts.jsonSchema) {
+        params.output_config = {
           ...(opts.effort ? { effort: opts.effort } : {}),
           ...(opts.jsonSchema ? { format: { type: "json_schema", schema: opts.jsonSchema } } : {}),
-        },
-      };
+        };
+      }
       if (opts.webSearch) {
         params.tools = [{ type: "web_search_20260209", name: "web_search", max_uses: opts.webSearch.maxUses }];
       }

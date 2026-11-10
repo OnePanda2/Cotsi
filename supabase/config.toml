@@ -1,0 +1,4 @@
+# Cotsi's API checks the sign-in token itself (and must answer browser preflight
+# requests that carry no token), so Supabase's built-in check is off for it.
+[functions.api]
+verify_jwt = false
