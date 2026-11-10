@@ -1,1 +1,4 @@
 cotsi-workspace/
+dev/.data.json
+node_modules/
+dist/
