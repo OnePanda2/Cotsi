@@ -22,5 +22,8 @@ export function readEnv(get: (name: string) => string | undefined): Env {
     // Supabase stops a free-plan function at 150 seconds, so give up a little earlier.
     requestTimeoutMs: num(get("COTSI_REQUEST_TIMEOUT_MS"), 140_000),
     devAuth: get("COTSI_DEV_AUTH") === "1",
+    notReadyMessage:
+      get("COTSI_NOT_READY_MESSAGE") ||
+      "Cotsi is getting ready for launch. Lessons and CV analysis open very soon, and your account is all set.",
   };
 }

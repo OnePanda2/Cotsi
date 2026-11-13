@@ -26,10 +26,13 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+const mock = Deno.env.get("MOCK_CLAUDE") === "1";
 const deps = {
   env,
   store: new SupabaseStore(supabase),
-  claude: Deno.env.get("MOCK_CLAUDE") === "1" ? makeMockClaude() : makeClaude(env.anthropicApiKey),
+  claude: mock ? makeMockClaude() : makeClaude(env.anthropicApiKey),
+  // Until the Claude API key is added, sign-in works and lessons show a "launching soon" note.
+  aiReady: mock || Boolean(env.anthropicApiKey.trim()),
   async verifyToken(token: string) {
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data.user) return null;

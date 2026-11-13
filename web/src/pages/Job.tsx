@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, stream } from "../api";
 import { useMe } from "../App";
+import { NotReady, useAiReady } from "../components/NotReady";
 import { Rich } from "../components/Rich";
 import type { JobDraft, JobPrefs, RoleRec, ScanResult, Track } from "../types";
 
@@ -25,6 +26,7 @@ function readBase64(file: File): Promise<string> {
 }
 
 function Upload({ onDone }: { onDone: (d: JobDraft) => void }) {
+  const aiReady = useAiReady();
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState("");
   const [paste, setPaste] = useState(false);
@@ -55,6 +57,7 @@ function Upload({ onDone }: { onDone: (d: JobDraft) => void }) {
         Upload your CV. <em>Cotsi does the rest.</em>
       </h1>
       <p className="lede small">It finds the roles rising in your field, then builds a syllabus of only what you're missing.</p>
+      <NotReady />
 
       {!paste ? (
         <label className="drop">
@@ -114,7 +117,7 @@ function Upload({ onDone }: { onDone: (d: JobDraft) => void }) {
       </label>
 
       {error && <div className="notice error">{error}</div>}
-      <button className="btn" disabled={busy}>
+      <button className="btn" disabled={busy || !aiReady}>
         {busy ? "Reading your CV…" : "Find my best roles"}
       </button>
       <p className="fine">Takes two to three minutes. Forecasts are estimates, not guarantees.</p>

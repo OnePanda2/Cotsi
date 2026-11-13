@@ -116,4 +116,6 @@ export type Env = {
   allowedOrigins: string[];
   requestTimeoutMs: number;
   devAuth: boolean;
+  /** Shown to signed-in learners while lessons aren't open yet (no Claude API key). */
+  notReadyMessage: string;
 };

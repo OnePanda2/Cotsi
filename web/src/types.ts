@@ -17,6 +17,7 @@ export type Me = {
   tracks: TrackSummary[];
   today: string;
   usage: { used: number };
+  ai?: { ready: boolean; message?: string };
 };
 
 export type Roadmap = {
