@@ -62,7 +62,7 @@ Deno.test("topic lesson: create, kickoff, answer, state saved, kickoff hidden", 
   const first = await call("POST", `/tracks/${id}/chat`, {});
   const text = first.events.filter((e) => e.t === "text").map((e) => e.d).join("");
   assert(text.includes("Leverage Map"), "streams the lesson");
-  assert(first.json.t === "done" && first.json.track.state.map.trunk.length === 2, "map saved from state block");
+  assert(first.json.t === "done" && first.json.track.state.map.trunk.length === 3, "map saved from state block");
   assert(first.json.track.state.nextReviewAt === "2026-11-11", "review scheduled for tomorrow");
 
   const second = await call("POST", `/tracks/${id}/chat`, { message: "It works because of the first idea" });
@@ -76,7 +76,7 @@ Deno.test("topic lesson: create, kickoff, answer, state saved, kickoff hidden", 
   assert(empty.status === 400, "empty follow-up rejected");
 
   const me = await call("GET", "/me");
-  assert(me.json.tracks.length === 1 && me.json.tracks[0].total === 2 && me.json.tracks[0].done === 1, "summary on /me");
+  assert(me.json.tracks.length === 1 && me.json.tracks[0].total === 3 && me.json.tracks[0].done === 1, "summary on /me");
   assert(me.json.usage.used > 0, "usage tracked");
 });
 
@@ -87,7 +87,7 @@ Deno.test("review thread uses saved state and reschedules", async () => {
   const review = await call("POST", `/tracks/${id}/chat`, { thread: "review-20261111" });
   assert(review.json.t === "done", "review runs");
   assert(review.json.track.state.nextReviewAt === "2026-11-13", "next review in 3 days");
-  assert(review.json.track.state.map.trunk.length === 2, "review doesn't erase the map");
+  assert(review.json.track.state.map.trunk.length === 3, "review doesn't erase the map");
 });
 
 Deno.test("job path: profile, scans, recommend, choose, plan, milestone, research", async () => {
@@ -121,7 +121,7 @@ Deno.test("job path: profile, scans, recommend, choose, plan, milestone, researc
   const q = await call("POST", `/tracks/${id}/chat`, { thread: "plan" });
   assert(q.events.map((e) => e.d ?? "").join("").includes("cotsi-choices"), "plan asks diagnostics");
   const roadmap = await call("POST", `/tracks/${id}/chat`, { thread: "plan", message: "The number of open tickets; Line chart" });
-  assert(roadmap.json.track.state.roadmap.milestones.length === 3, "roadmap saved");
+  assert(roadmap.json.track.state.roadmap.milestones.length === 6, "roadmap saved");
 
   await call("POST", `/tracks/${id}/chat`, { thread: "m1" });
   const done = await call("POST", `/tracks/${id}/chat`, { thread: "m1", message: "Here is my query and answer" });
@@ -130,11 +130,11 @@ Deno.test("job path: profile, scans, recommend, choose, plan, milestone, researc
   assert(bad.status === 404, "unknown milestone");
 
   const hunt = await call("POST", `/tracks/${id}/chat`, { thread: "hunt" });
-  assert(hunt.json.sources.length === 1 && hunt.events.some((e) => e.t === "status"), "job hunt returns sources");
+  assert(hunt.json.sources.length === 3 && hunt.events.some((e) => e.t === "status"), "job hunt returns sources");
   const edge = await call("POST", `/tracks/${id}/chat`, { thread: "edge" });
   assert(edge.json.t === "done", "unfair advantage runs");
   const me = await call("GET", "/me");
-  assert(me.json.tracks[0].total === 3 && me.json.tracks[0].done === 1, "job progress on /me");
+  assert(me.json.tracks[0].total === 6 && me.json.tracks[0].done === 1, "job progress on /me");
 });
 
 Deno.test("budget caps: per-user and whole-site, reset next day", async () => {

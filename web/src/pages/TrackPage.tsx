@@ -186,7 +186,7 @@ export function TrackPage() {
           )}
           {track.state.cards?.length && !isJob ? (
             <button className="link" onClick={() => downloadCards(track)}>
-              ⬇ Download {track.state.cards.length} review cards for Anki
+              ⬇ Download {track.state.cards.length} review {track.state.cards.length === 1 ? "card" : "cards"} for Anki
             </button>
           ) : null}
         </>

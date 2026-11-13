@@ -85,8 +85,8 @@ Add any of these under Supabase **Edge Functions → Secrets**. They take effect
 | `COTSI_USER_DAILY_USD` | `1.5` | AI spend per person per day. |
 | `COTSI_JOB_ANALYSES_PER_DAY` | `1` | CV analyses per person per day. |
 | `COTSI_MODEL_LESSON` | `claude-sonnet-5-5` | Model for lessons, milestones and reviews. |
-| `COTSI_MODEL_PLAN` | `claude-opus-5-5` | Model that builds the syllabus. |
-| `COTSI_MODEL_RESEARCH` | `claude-opus-5-5` | Model for CV reading, market scans, job search and "your edge". |
+| `COTSI_MODEL_PLAN` | `claude-sonnet-5-5` | Model that builds the syllabus. `claude-opus-5-5` is sharper and costs about twice as much. |
+| `COTSI_MODEL_RESEARCH` | `claude-sonnet-5-5` | Model for CV reading, market scans, job search and "your edge". `claude-opus-5-5` is sharper and costs about twice as much. |
 | `COTSI_ALLOWED_ORIGINS` | `https://cotsi.siddheshthapa.com` | Websites allowed to call the API (comma-separated). |
 
 ## Running it on your own computer

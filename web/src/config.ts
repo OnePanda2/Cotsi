@@ -11,6 +11,8 @@ export const config = {
   supabaseAnonKey: (env.VITE_SUPABASE_ANON_KEY as string | undefined) || SUPABASE_ANON_KEY,
   /** Local development: sign in as a test learner against dev/server.ts. */
   devAuth: env.VITE_DEV_AUTH === "1",
+  /** The clickable preview: the API runs inside the page with sample replies. */
+  demo: env.VITE_DEMO === "1",
   get apiUrl(): string {
     return (env.VITE_API_URL as string | undefined) || (this.supabaseUrl ? `${this.supabaseUrl}/functions/v1/api` : "");
   },

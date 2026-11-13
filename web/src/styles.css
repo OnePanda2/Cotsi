@@ -1037,7 +1037,7 @@ details.card h3 {
 }
 
 .md {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .md > * + * {

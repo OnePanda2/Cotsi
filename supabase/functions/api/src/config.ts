@@ -10,8 +10,8 @@ export function readEnv(get: (name: string) => string | undefined): Env {
   return {
     anthropicApiKey: get("ANTHROPIC_API_KEY") ?? "",
     modelLesson: get("COTSI_MODEL_LESSON") || "claude-sonnet-5-5",
-    modelPlan: get("COTSI_MODEL_PLAN") || "claude-opus-5-5",
-    modelResearch: get("COTSI_MODEL_RESEARCH") || "claude-opus-5-5",
+    modelPlan: get("COTSI_MODEL_PLAN") || "claude-sonnet-5-5",
+    modelResearch: get("COTSI_MODEL_RESEARCH") || "claude-sonnet-5-5",
     dailyBudgetUsd: num(get("COTSI_DAILY_BUDGET_USD"), 10),
     userDailyUsd: num(get("COTSI_USER_DAILY_USD"), 1.5),
     jobAnalysesPerDay: num(get("COTSI_JOB_ANALYSES_PER_DAY"), 1),

@@ -49,7 +49,7 @@ export function Landing() {
     if (to) rememberNext(to);
     void signIn();
   };
-  const label = config.devAuth ? "Continue as test learner" : "Continue with Google";
+  const label = config.devAuth && !config.demo ? "Continue as test learner" : "Continue with Google";
   return (
     <div className="landing">
       <section className="hero">
