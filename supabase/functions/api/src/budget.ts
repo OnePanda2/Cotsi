@@ -40,6 +40,9 @@ export type Limits = {
   jobAnalysesPerDay: number;
 };
 
+/** Extra room a CV analysis gets above the daily per-person cap, so its scans and ranking can finish. */
+export const ANALYSIS_ALLOWANCE_USD = 3;
+
 export function dayKey(now: Date): string {
   return `usage:${now.toISOString().slice(0, 10)}`;
 }
@@ -57,7 +60,7 @@ export async function checkBudget(
   user: string,
   limits: Limits,
   now: Date,
-  kind: "reply" | "analysis" = "reply",
+  kind: "reply" | "analysis" | "step" = "reply",
 ): Promise<BudgetStatus> {
   const key = dayKey(now);
   const [site, mine] = await Promise.all([
@@ -74,7 +77,9 @@ export async function checkBudget(
       message: "Cotsi is at capacity for today. Your progress is saved. Please come back tomorrow.",
     };
   }
-  if (userSpent >= limits.userDailyUsd) {
+  // The scans and ranking of a CV analysis already started may go past the usual cap.
+  const userCap = kind === "step" ? limits.userDailyUsd + ANALYSIS_ALLOWANCE_USD : limits.userDailyUsd;
+  if (userSpent >= userCap) {
     return {
       ...base,
       ok: false,

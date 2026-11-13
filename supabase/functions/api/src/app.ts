@@ -127,7 +127,7 @@ function limits(env: Env) {
   return { dailyBudgetUsd: env.dailyBudgetUsd, userDailyUsd: env.userDailyUsd, jobAnalysesPerDay: env.jobAnalysesPerDay };
 }
 
-async function requireBudget(deps: Deps, user: User, kind: "reply" | "analysis" = "reply") {
+async function requireBudget(deps: Deps, user: User, kind: "reply" | "analysis" | "step" = "reply") {
   const status = await checkBudget(deps.store, user.id, limits(deps.env), now(deps), kind);
   if (!status.ok) throw new HttpError(429, status.message!, status.reason);
 }
@@ -571,7 +571,7 @@ async function jobScan(req: Request, user: User, deps: Deps): Promise<Response> 
   if (!Object.hasOwn(SIGNALS, signal)) throw new HttpError(400, "Unknown signal.");
   const draft = await deps.store.get<JobDraft>(user.id, "job");
   if (!draft?.profile || !draft.prefs) throw new HttpError(409, "Upload your CV first.");
-  await requireBudget(deps, user);
+  await requireBudget(deps, user, "step");
   const at = now(deps);
 
   return sse(async (send) => {
@@ -610,7 +610,7 @@ async function jobRecommend(user: User, deps: Deps): Promise<Response> {
   ]);
   if (!draft?.profile || !draft.prefs) throw new HttpError(409, "Upload your CV first.");
   if (scans.length < 2) throw new HttpError(409, "The market scan hasn't finished yet.");
-  await requireBudget(deps, user);
+  await requireBudget(deps, user, "step");
   const at = now(deps);
   const scanText: Partial<Record<Signal, string>> = {};
   for (const s of scans) scanText[s.key.slice("jobscan:".length) as Signal] = s.value.text;

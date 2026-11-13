@@ -155,6 +155,22 @@ Deno.test("budget caps: per-user and whole-site, reset next day", async () => {
   assert(next.json.t === "done", "caps reset the next day");
 });
 
+Deno.test("a started CV analysis can finish past the per-person cap", async () => {
+  const { call } = setup({ COTSI_USER_DAILY_USD: "0.03" });
+  const prefs = { hoursPerWeek: 5, horizonMonths: 3, location: "India", workMode: "either" };
+  const profile = await call("POST", "/job/profile", { text: "Customer support lead. ".repeat(20), prefs });
+  assert(profile.status === 200, "profile read");
+  for (const signal of ["hiring", "money", "launches", "momentum"]) {
+    const scan = await call("POST", "/job/scan", { signal });
+    assert(scan.json.t === "done", `scan ${signal} finished past the cap`);
+  }
+  const recs = await call("POST", "/job/recommend");
+  assert(recs.status === 200 && recs.json.draft.recs, "ranking finished past the cap");
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" })).json.track.id;
+  const lesson = await call("POST", `/tracks/${id}/chat`, {});
+  assert(lesson.status === 429 && lesson.json.code === "user_limit", "ordinary lessons still respect the cap");
+});
+
 Deno.test("users are isolated; delete removes everything", async () => {
   const { call, store } = setup();
   const id = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" })).json.track.id;
