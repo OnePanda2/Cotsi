@@ -36,8 +36,14 @@ jobs:
         working-directory: web
         env:
           VITE_SUPABASE_URL: ${{ vars.SUPABASE_PROJECT_REF && format('https://{0}.supabase.co', vars.SUPABASE_PROJECT_REF) || '' }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          # The publishable (anon) key is public by design; it may be saved as a variable or a secret.
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          IS_MAIN: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
         run: |
+          if [ "$IS_MAIN" = "true" ] && { [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; }; then
+            echo "::error::The website can't connect to Supabase. In GitHub: Settings > Secrets and variables > Actions > Variables, add SUPABASE_PROJECT_REF and SUPABASE_ANON_KEY (the publishable key), then re-run this workflow."
+            exit 1
+          fi
           npm ci
           npm run build
       - uses: actions/upload-pages-artifact@v3
