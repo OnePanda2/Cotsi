@@ -28,8 +28,14 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <>
       <header className="top">
-        <Link className="brand" to="/">
-          <span aria-hidden="true">🎬</span> Cotsi
+        <Link className="brand" to="/" aria-label="Cotsi, Complex to Simple">
+          <span className="mark" aria-hidden="true">🎬</span>
+          <span className="lockup" aria-hidden="true">
+            <span className="name">Cotsi</span>
+            <span className="sub">
+              <b>Co</b>mplex-<b>t</b>o-<b>Si</b>mple
+            </span>
+          </span>
         </Link>
         {signedIn && (
           <nav>
