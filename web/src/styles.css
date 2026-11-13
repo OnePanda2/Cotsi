@@ -191,6 +191,28 @@ p.center {
   align-items: center;
 }
 
+.brand .lockup {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.brand .name {
+  line-height: 0.9;
+}
+
+.brand .sub {
+  font: 500 0.66rem / 1 var(--sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.brand .sub b {
+  font-weight: 700;
+  color: #cfc7ff;
+}
+
 .top nav {
   display: flex;
   gap: 4px;
