@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useMe } from "../App";
+import { NotReady } from "../components/NotReady";
 import type { TrackSummary } from "../types";
 import { SECTIONS } from "./Landing";
 
@@ -48,6 +49,7 @@ export function Home() {
   return (
     <div className="home">
       <h1>{first ? `Hi ${first}. ` : ""}What do you want to <em>learn</em>?</h1>
+      <NotReady />
 
       <section className="sections">
         {SECTIONS.map((s) => (

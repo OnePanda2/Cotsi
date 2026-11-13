@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
+import { NotReady, useAiReady } from "../components/NotReady";
 import type { Prefs, Track } from "../types";
 
 const COPY = {
@@ -50,6 +51,7 @@ export function StylePicker({ prefs, onChange }: { prefs: Prefs; onChange: (p: P
 export function NewLesson() {
   const { kind } = useParams();
   const { me, reload } = useMe();
+  const aiReady = useAiReady();
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [depth, setDepth] = useState("standard");
@@ -83,6 +85,7 @@ export function NewLesson() {
   return (
     <form className="panel form" onSubmit={submit}>
       <h1>{copy.title}</h1>
+      <NotReady />
       <label>
         {copy.label}
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={copy.placeholder} maxLength={200} autoFocus required />
@@ -104,7 +107,7 @@ export function NewLesson() {
       {kind === "book" && <p className="fine">Book lessons use the plain style. Cotsi tells you when it isn't sure about a book's details.</p>}
 
       {error && <div className="notice error">{error}</div>}
-      <button className="btn" disabled={busy || title.trim().length < 2}>
+      <button className="btn" disabled={busy || !aiReady || title.trim().length < 2}>
         {busy ? "Starting…" : copy.cta}
       </button>
     </form>

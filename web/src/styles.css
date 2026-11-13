@@ -811,6 +811,19 @@ legend {
   color: #fde9b0;
 }
 
+.notice.launching {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-color: rgba(124, 106, 247, 0.5);
+  background: var(--accent-soft);
+  color: #e4defc;
+}
+
+.notice.launching .pulse {
+  flex: none;
+}
+
 .notice .link {
   margin-left: 10px;
   padding: 0;

@@ -44,6 +44,8 @@ export type Deps = {
   /** Removes the sign-in account itself (optional; data is always deleted). */
   deleteAccount?: (userId: string) => Promise<void>;
   now?: () => Date;
+  /** False while no Claude API key is set: learners can sign in, and lessons wait for launch. */
+  aiReady?: boolean;
 };
 
 type UserRecord = { email: string; name: string; prefs: Prefs; createdAt: string };
@@ -67,7 +69,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   try {
     const url = new URL(req.url);
     const path = url.pathname.replace(/^.*?\/api(?=\/|$)/, "") || "/";
-    if (path === "/health") return json({ ok: true }, 200, cors);
+    if (path === "/health") return json({ ok: true, ai: deps.aiReady !== false }, 200, cors);
 
     const user = await authenticate(req, deps);
     const res = await route(req, path, url, user, deps);
@@ -128,6 +130,7 @@ function limits(env: Env) {
 }
 
 async function requireBudget(deps: Deps, user: User, kind: "reply" | "analysis" | "step" = "reply") {
+  if (deps.aiReady === false) throw new HttpError(503, deps.env.notReadyMessage, "not_ready");
   const status = await checkBudget(deps.store, user.id, limits(deps.env), now(deps), kind);
   if (!status.ok) throw new HttpError(429, status.message!, status.reason);
 }
@@ -264,6 +267,7 @@ async function getMe(user: User, deps: Deps): Promise<Response> {
     tracks: summaries,
     today: now(deps).toISOString().slice(0, 10),
     usage: { used: Math.min(1, (usage?.cost ?? 0) / deps.env.userDailyUsd) },
+    ai: deps.aiReady === false ? { ready: false, message: deps.env.notReadyMessage } : { ready: true },
   });
 }
 
@@ -443,7 +447,7 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
           model: plan.mode === "plan" ? deps.env.modelPlan : deps.env.modelLesson,
           system: lessonSystem(session),
           messages,
-          maxTokens: 12000,
+          maxTokens: 16000,
           effort: plan.mode === "plan" || history.length <= 1 ? "medium" : "low",
           onText: (d) => send({ t: "text", d }),
           signal: timeout.signal,
@@ -585,7 +589,7 @@ async function jobScan(req: Request, user: User, deps: Deps): Promise<Response> 
           role: "user",
           content: scanUser({ today: at.toISOString().slice(0, 10), signal, profile: draft.profile!, prefs: draft.prefs! }),
         }],
-        maxTokens: 6000,
+        maxTokens: 8000,
         effort: "low",
         webSearch: { maxUses: 3 },
         onStatus: (s) => send({ t: "status", d: s }),

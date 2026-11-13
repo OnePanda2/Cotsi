@@ -21,6 +21,7 @@ function setup(overrides: Record<string, string> = {}) {
     claude: makeMockClaude(0),
     verifyToken: (t: string) => Promise.resolve(t.startsWith("dev:") ? { id: t, email: `${t.slice(4)}@x.com`, name: "Riya Sharma" } : null),
     now: () => clock,
+    aiReady: true as boolean,
   };
   const call = async (method: string, path: string, body?: unknown, token = "dev:riya") => {
     const res = await handle(
@@ -169,6 +170,21 @@ Deno.test("a started CV analysis can finish past the per-person cap", async () =
   const id = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" })).json.track.id;
   const lesson = await call("POST", `/tracks/${id}/chat`, {});
   assert(lesson.status === 429 && lesson.json.code === "user_limit", "ordinary lessons still respect the cap");
+});
+
+Deno.test("without an API key: sign-in works, lessons say launching soon", async () => {
+  const { call, deps } = setup();
+  deps.aiReady = false;
+  const me = await call("GET", "/me");
+  assert(me.status === 200 && me.json.ai.ready === false && me.json.ai.message, "me reports not ready");
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" })).json.track.id;
+  const lesson = await call("POST", `/tracks/${id}/chat`, {});
+  assert(lesson.status === 503 && lesson.json.code === "not_ready", "lesson waits for launch");
+  const cv = await call("POST", "/job/profile", { text: "Customer support lead. ".repeat(20), prefs: PREFS });
+  assert(cv.status === 503 && cv.json.code === "not_ready", "CV analysis waits for launch");
+  deps.aiReady = true;
+  const later = await call("POST", "/job/profile", { text: "Customer support lead. ".repeat(20), prefs: PREFS });
+  assert(later.status === 200, "the waiting attempt didn't use up the daily analysis");
 });
 
 Deno.test("users are isolated; delete removes everything", async () => {

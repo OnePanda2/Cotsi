@@ -33,6 +33,8 @@ const deps = {
   env,
   store,
   claude: mock ? makeMockClaude() : makeClaude(env.anthropicApiKey),
+  // COTSI_AI_READY=0 previews the "launching soon" state.
+  aiReady: Deno.env.get("COTSI_AI_READY") !== "0",
   verifyToken(token: string) {
     const m = token.match(/^dev:([a-z0-9-]{1,40})$/);
     return Promise.resolve(m ? { id: `dev-${m[1]}`, email: `${m[1]}@example.com`, name: "Test Learner" } : null);

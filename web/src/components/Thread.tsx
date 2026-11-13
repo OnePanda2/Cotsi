@@ -171,6 +171,8 @@ export function Thread(props: Props) {
   const last = list[list.length - 1];
   const activeChoices = !busy && last?.role === "assistant" ? choicesOf(last.text) : [];
   const empty = list.length === 0 && !busy;
+  // Daily limits and the pre-launch wait aren't errors the learner can fix by retrying.
+  const calm = error?.code === "site_full" || error?.code === "user_limit" || error?.code === "not_ready";
 
   return (
     <div className="thread">
@@ -207,9 +209,9 @@ export function Thread(props: Props) {
       {activeChoices.length > 0 && <Choices key={list.length} questions={activeChoices} disabled={busy} onAnswer={(t) => void send(t)} />}
 
       {error && (
-        <div className={`notice ${error.code === "site_full" || error.code === "user_limit" ? "calm" : "error"}`} role="alert">
+        <div className={`notice ${calm ? "calm" : "error"}`} role="alert">
           {error.message}
-          {error.code !== "site_full" && error.code !== "user_limit" && list.length === 0 && props.autoStart && (
+          {!calm && list.length === 0 && props.autoStart && (
             <button className="link" onClick={() => void send("")}>
               Try again
             </button>
