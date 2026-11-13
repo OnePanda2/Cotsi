@@ -69,7 +69,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   try {
     const url = new URL(req.url);
     const path = url.pathname.replace(/^.*?\/api(?=\/|$)/, "") || "/";
-    if (path === "/health") return json({ ok: true, ai: deps.aiReady !== false }, 200, cors);
+    if (path === "/health") return json(await health(deps, url.searchParams.has("deep")), 200, cors);
 
     const user = await authenticate(req, deps);
     const res = await route(req, path, url, user, deps);
@@ -84,6 +84,28 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
 }
 
 // ------------------------------------------------------------------ plumbing
+
+/** Whether the AI key is set and the database answers. `deep` also checks the spending counter. */
+async function health(deps: Deps, deep: boolean) {
+  const result: Record<string, boolean> = { ok: true, ai: deps.aiReady !== false };
+  try {
+    await deps.store.get("_health", "ping");
+    result.db = true;
+  } catch (err) {
+    console.error("health db", err);
+    result.db = false;
+  }
+  if (deep) {
+    try {
+      await deps.store.bump("_health", "ping", { checks: 0 });
+      result.counters = true;
+    } catch (err) {
+      console.error("health counters", err);
+      result.counters = false;
+    }
+  }
+  return result;
+}
 
 function corsHeaders(req: Request, env: Env): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";

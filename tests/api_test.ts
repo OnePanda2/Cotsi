@@ -52,6 +52,8 @@ Deno.test("auth is required and CORS is set", async () => {
   assert(anon.headers.get("access-control-allow-origin") === "https://cotsi.siddheshthapa.com", "cors header");
   const bad = await call("GET", "/me", undefined, "nope");
   assert(bad.status === 401, "401 with bad token");
+  const health = await call("GET", "/health?deep", undefined, "");
+  assert(health.json.ok && health.json.db === true && health.json.counters === true, "health checks the database");
 });
 
 Deno.test("topic lesson: create, kickoff, answer, state saved, kickoff hidden", async () => {

@@ -1,0 +1,46 @@
+name: Live check
+
+# Tests the live site from the outside: after every deploy, every 6 hours, or from the Actions
+# tab (Live check > Run workflow). Results show on the run's summary page; a failure emails
+# the repo owner.
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Test and deploy"]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "23 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install a browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.49.1
+          npx playwright install --with-deps chromium
+      - name: Give GitHub Pages a minute to update
+        if: github.event_name == 'workflow_run'
+        run: sleep 60
+      - name: Check the live site
+        env:
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/live-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-check-screenshots
+          path: live-check/
+          if-no-files-found: ignore
