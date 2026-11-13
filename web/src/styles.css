@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Thapa";
+  src: url("./fonts/Thapa-Bold.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #07060b;
   --surface: #110f18;
@@ -13,7 +21,7 @@
   --warn: #fbbf24;
   --bad: #f87171;
   --radius: 18px;
-  --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --serif: Thapa, Inter, system-ui, sans-serif;
   --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
@@ -70,13 +78,13 @@ figure {
 
 h1 {
   font: 400 clamp(2rem, 7vw, 3rem) / 1.08 var(--serif);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
 h1 em,
 h2 em {
-  font-style: italic;
+  font-style: normal;
   background: linear-gradient(100deg, #b3a6ff, var(--accent-2));
   -webkit-background-clip: text;
   background-clip: text;
