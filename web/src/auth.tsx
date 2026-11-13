@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { config } from "./config";
+import { getItem, removeItem, setItem } from "./storage";
 
 type AuthState = {
   ready: boolean;
@@ -20,7 +21,7 @@ if (!config.devAuth && config.configured) {
 /** The bearer token for API calls, or null when signed out. */
 export async function getToken(): Promise<string | null> {
   if (config.devAuth) {
-    const name = localStorage.getItem(DEV_KEY);
+    const name = getItem("local", DEV_KEY);
     return name ? `dev:${name}` : null;
   }
   if (!supabase) return null;
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (config.devAuth) {
-      setSignedIn(Boolean(localStorage.getItem(DEV_KEY)));
+      setSignedIn(Boolean(getItem("local", DEV_KEY)));
       setReady(true);
       return;
     }
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signedIn,
       async signIn() {
         if (config.devAuth) {
-          localStorage.setItem(DEV_KEY, "learner");
+          setItem("local", DEV_KEY, "learner");
           setSignedIn(true);
           return;
         }
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       },
       async signOut() {
-        if (config.devAuth) localStorage.removeItem(DEV_KEY);
+        if (config.devAuth) removeItem("local", DEV_KEY);
         else await supabase?.auth.signOut();
         setSignedIn(false);
       },

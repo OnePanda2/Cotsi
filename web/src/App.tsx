@@ -10,6 +10,7 @@ import { NewLesson } from "./pages/NewLesson";
 import { Privacy } from "./pages/Privacy";
 import { Settings } from "./pages/Settings";
 import { TrackPage } from "./pages/TrackPage";
+import { getItem, removeItem, setItem } from "./storage";
 import type { Me } from "./types";
 
 type MeState = { me: Me | null; reload: () => Promise<void> };
@@ -19,7 +20,7 @@ export const useMe = () => useContext(MeContext);
 const NEXT_KEY = "cotsi:next";
 /** Remember where a signed-out visitor wanted to go, so sign-in lands them there. */
 export function rememberNext(path: string) {
-  sessionStorage.setItem(NEXT_KEY, path);
+  setItem("session", NEXT_KEY, path);
 }
 
 function Shell({ children }: { children: ReactNode }) {
@@ -82,9 +83,9 @@ export function App() {
       return;
     }
     void reload().then(() => {
-      const next = sessionStorage.getItem(NEXT_KEY);
+      const next = getItem("session", NEXT_KEY);
       if (next) {
-        sessionStorage.removeItem(NEXT_KEY);
+        removeItem("session", NEXT_KEY);
         navigate(next, { replace: true });
       }
     });

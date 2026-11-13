@@ -7,6 +7,8 @@ export default defineConfig({
   root: "demo",
   base: "./",
   plugins: [react()],
+  // Escape non-ASCII characters so the bundle survives any text re-encoding.
+  esbuild: { charset: "ascii" },
   resolve: {
     alias: { "@anthropic-ai/sdk": fileURLToPath(new URL("./demo/anthropic-stub.ts", import.meta.url)) },
   },
