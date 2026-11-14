@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError } from "./api";
+import logoUrl from "./assets/cotsi-logo.svg";
 import { useAuth } from "./auth";
 import { config } from "./config";
 import { Home } from "./pages/Home";
@@ -29,7 +30,7 @@ function Shell({ children }: { children: ReactNode }) {
     <>
       <header className="top">
         <Link className="brand" to="/" aria-label="Cotsi, Complex to Simple">
-          <span className="mark" aria-hidden="true">🎬</span>
+          <img className="mark" src={logoUrl} alt="" aria-hidden="true" width="34" height="34" />
           <span className="lockup" aria-hidden="true">
             <span className="name">Cotsi</span>
             <span className="sub">
