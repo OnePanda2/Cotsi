@@ -55,7 +55,7 @@ export function Landing() {
       <section className="hero">
         <p className="badge">
           <span className="pulse" aria-hidden="true" />
-          Free while in early access
+          Early access · founding members first
         </p>
         <h1>
           Learn anything. <em>Get job-ready.</em>
