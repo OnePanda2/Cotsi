@@ -1,6 +1,8 @@
 // End-to-end tests of the API with the mock AI and an in-memory store.
 //   deno test -A --config supabase/functions/api/deno.json tests/api_test.ts
-import { extractState, handle } from "../supabase/functions/api/src/app.ts";
+import Anthropic from "@anthropic-ai/sdk";
+import { extractState, handle, isMember } from "../supabase/functions/api/src/app.ts";
+import { describeError, isOutOfCredit } from "../supabase/functions/api/src/claude.ts";
 import { readEnv } from "../supabase/functions/api/src/config.ts";
 import { makeMockClaude } from "../supabase/functions/api/src/mock.ts";
 import { MemoryStore } from "../supabase/functions/api/src/store.ts";
@@ -11,7 +13,7 @@ function assert(cond: unknown, msg: string): asserts cond {
 }
 
 function setup(overrides: Record<string, string> = {}) {
-  const env = readEnv((n) => overrides[n]);
+  const env = readEnv((n) => ({ COTSI_MEMBERS: "*", ...overrides })[n]);
   env.allowedOrigins = ["https://cotsi.siddheshthapa.com"];
   const store = new MemoryStore();
   let clock = new Date("2026-11-10T10:00:00Z");
@@ -187,6 +189,64 @@ Deno.test("without an API key: sign-in works, lessons say launching soon", async
   deps.aiReady = true;
   const later = await call("POST", "/job/profile", { text: "Customer support lead. ".repeat(20), prefs: PREFS });
   assert(later.status === 200, "the waiting attempt didn't use up the daily analysis");
+});
+
+Deno.test("only founding members on the list can use the AI", async () => {
+  const { call, deps } = setup({ COTSI_MEMBERS: "Riya@X.com, someone@else.com" });
+  const me = await call("GET", "/me");
+  assert(me.json.ai.ready === true, "a listed member is ready (email match ignores case)");
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" })).json.track.id;
+  assert((await call("POST", `/tracks/${id}/chat`, {})).status === 200, "a member gets lessons");
+
+  const other = await call("GET", "/me", undefined, "dev:sam");
+  assert(other.status === 200 && other.json.ai.ready === false, "someone not on the list can sign in");
+  assert(/founding members/.test(other.json.ai.message) && !/\bfree\b/i.test(other.json.ai.message), "and sees the founding-members note");
+  const theirs = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" }, "dev:sam")).json.track.id;
+  const lesson = await call("POST", `/tracks/${theirs}/chat`, {}, "dev:sam");
+  assert(lesson.status === 403 && lesson.json.code === "members_only", "but can't start a lesson");
+  const cv = await call("POST", "/job/profile", { text: "Customer support lead. ".repeat(20), prefs: PREFS }, "dev:sam");
+  assert(cv.status === 403 && cv.json.code === "members_only", "or a CV analysis");
+
+  deps.aiReady = false;
+  const waiting = await call("POST", `/tracks/${theirs}/chat`, {}, "dev:sam");
+  assert(waiting.status === 503 && waiting.json.code === "not_ready", "with no key, everyone sees the launching note first");
+
+  const closed = setup({ COTSI_MEMBERS: "" });
+  const nobody = await closed.call("GET", "/me");
+  assert(nobody.json.ai.ready === false, "an empty list lets nobody in, so adding the key never opens the AI by accident");
+  assert(isMember(["*"], "anyone@x.com") && !isMember(["a@x.com"], "") && !isMember([], "a@x.com"), "isMember");
+});
+
+Deno.test("an empty Claude account shows a calm 'paused' note, not 'rephrase'", () => {
+  const low = Anthropic.APIError.generate(
+    400,
+    { type: "error", error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits." } },
+    undefined,
+    new Headers(),
+  );
+  assert(isOutOfCredit(low), "credit balance error recognised");
+  assert(describeError(low).status === 503 && /paused/.test(describeError(low).message), "learner sees the paused note");
+  const cap = Anthropic.APIError.generate(
+    429,
+    { type: "error", error: { type: "rate_limit_error", message: "You have reached your API usage limits", details: { error_code: "enforced_spend_limit_reached" } } },
+    undefined,
+    new Headers(),
+  );
+  assert(isOutOfCredit(cap), "spend cap recognised");
+  const busy = Anthropic.APIError.generate(
+    429,
+    { type: "error", error: { type: "rate_limit_error", message: "Number of request tokens has exceeded your per-minute rate limit" } },
+    undefined,
+    new Headers(),
+  );
+  assert(!isOutOfCredit(busy) && /busy/.test(describeError(busy).message), "an ordinary rate limit still says busy");
+  const bad = Anthropic.APIError.generate(
+    400,
+    { type: "error", error: { type: "invalid_request_error", message: "messages: text content blocks must be non-empty" } },
+    undefined,
+    new Headers(),
+  );
+  assert(!isOutOfCredit(bad), "other bad requests are unchanged");
 });
 
 Deno.test("users are isolated; delete removes everything", async () => {

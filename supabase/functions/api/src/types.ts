@@ -118,4 +118,8 @@ export type Env = {
   devAuth: boolean;
   /** Shown to signed-in learners while lessons aren't open yet (no Claude API key). */
   notReadyMessage: string;
+  /** Lowercase emails allowed to use lessons and CV analysis; "*" allows everyone. */
+  memberEmails: string[];
+  /** Shown to signed-in learners who aren't on the members list. */
+  membersOnlyMessage: string;
 };

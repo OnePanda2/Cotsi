@@ -151,8 +151,27 @@ function limits(env: Env) {
   return { dailyBudgetUsd: env.dailyBudgetUsd, userDailyUsd: env.userDailyUsd, jobAnalysesPerDay: env.jobAnalysesPerDay };
 }
 
+/** True when this email may use lessons and CV analysis. */
+export function isMember(memberEmails: string[], email: string): boolean {
+  if (memberEmails.includes("*")) return true;
+  const e = email.trim().toLowerCase();
+  return e !== "" && memberEmails.includes(e);
+}
+
+type Access = { ready: true } | { ready: false; message: string; code: "not_ready" | "members_only" };
+
+/** Whether this learner can use the AI right now, and what to tell them if not. */
+function aiAccess(deps: Deps, user: User): Access {
+  if (deps.aiReady === false) return { ready: false, message: deps.env.notReadyMessage, code: "not_ready" };
+  if (!isMember(deps.env.memberEmails, user.email)) {
+    return { ready: false, message: deps.env.membersOnlyMessage, code: "members_only" };
+  }
+  return { ready: true };
+}
+
 async function requireBudget(deps: Deps, user: User, kind: "reply" | "analysis" | "step" = "reply") {
-  if (deps.aiReady === false) throw new HttpError(503, deps.env.notReadyMessage, "not_ready");
+  const access = aiAccess(deps, user);
+  if (!access.ready) throw new HttpError(access.code === "not_ready" ? 503 : 403, access.message, access.code);
   const status = await checkBudget(deps.store, user.id, limits(deps.env), now(deps), kind);
   if (!status.ok) throw new HttpError(429, status.message!, status.reason);
 }
@@ -289,7 +308,10 @@ async function getMe(user: User, deps: Deps): Promise<Response> {
     tracks: summaries,
     today: now(deps).toISOString().slice(0, 10),
     usage: { used: Math.min(1, (usage?.cost ?? 0) / deps.env.userDailyUsd) },
-    ai: deps.aiReady === false ? { ready: false, message: deps.env.notReadyMessage } : { ready: true },
+    ai: (() => {
+      const access = aiAccess(deps, user);
+      return access.ready ? { ready: true } : { ready: false, message: access.message };
+    })(),
   });
 }
 

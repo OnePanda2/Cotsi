@@ -12,6 +12,8 @@ import { MemoryStore } from "../supabase/functions/api/src/store.ts";
 
 const env = readEnv((name) => Deno.env.get(name));
 env.devAuth = true;
+// Every local test user may use the AI unless COTSI_MEMBERS says otherwise.
+if (!Deno.env.get("COTSI_MEMBERS")) env.memberEmails = ["*"];
 env.allowedOrigins = ["http://localhost:5173", "http://localhost:4173", ...env.allowedOrigins];
 
 const file = new URL("./.data.json", import.meta.url);

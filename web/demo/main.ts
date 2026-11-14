@@ -26,6 +26,7 @@ const env = readEnv(() => undefined);
 env.dailyBudgetUsd = 1000;
 env.userDailyUsd = 1000;
 env.jobAnalysesPerDay = 1000;
+env.memberEmails = ["*"];
 
 const deps = {
   env,

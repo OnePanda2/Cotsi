@@ -1,6 +1,6 @@
 import { useMe } from "../App";
 
-/** Shown while lessons aren't open yet (before launch, when no AI key is set). */
+/** Shown while lessons aren't open to this learner: before launch (no AI key), or not on the founding-members list. */
 export function NotReady() {
   const { me } = useMe();
   if (!me || me.ai?.ready !== false) return null;

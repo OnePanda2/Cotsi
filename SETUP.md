@@ -91,6 +91,8 @@ Add any of these under Supabase **Edge Functions → Secrets**. They take effect
 | `COTSI_MODEL_LESSON` | `claude-sonnet-5-5` | Model for lessons, milestones and reviews. |
 | `COTSI_MODEL_PLAN` | `claude-sonnet-5-5` | Model that builds the syllabus. `claude-opus-5-5` is sharper and costs about twice as much. |
 | `COTSI_MODEL_RESEARCH` | `claude-sonnet-5-5` | Model for CV reading, market scans, job search and "your edge". `claude-opus-5-5` is sharper and costs about twice as much. |
+| `COTSI_MEMBERS` | empty (nobody) | Emails that may use lessons and CV analysis, separated by commas. `*` opens it to everyone who signs in. Everyone else sees the founding-members note. |
+| `COTSI_MEMBERS_ONLY_MESSAGE` | "Cotsi is open to founding members first…" | The note people not on `COTSI_MEMBERS` see. |
 | `COTSI_NOT_READY_MESSAGE` | "Cotsi is getting ready for launch…" | The note shown while there's no API key. |
 | `COTSI_ALLOWED_ORIGINS` | `https://cotsi.siddheshthapa.com` | Websites allowed to call the API (comma-separated). |
 

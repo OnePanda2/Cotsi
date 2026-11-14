@@ -171,8 +171,9 @@ export function Thread(props: Props) {
   const last = list[list.length - 1];
   const activeChoices = !busy && last?.role === "assistant" ? choicesOf(last.text) : [];
   const empty = list.length === 0 && !busy;
-  // Daily limits and the pre-launch wait aren't errors the learner can fix by retrying.
-  const calm = error?.code === "site_full" || error?.code === "user_limit" || error?.code === "not_ready";
+  // Daily limits, the pre-launch wait and the members-only note aren't errors the learner can fix by retrying.
+  const calm =
+    error?.code === "site_full" || error?.code === "user_limit" || error?.code === "not_ready" || error?.code === "members_only";
 
   return (
     <div className="thread">

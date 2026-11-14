@@ -5,8 +5,12 @@ see a "Cotsi is getting ready for launch" note; lessons and CV analysis wait.
 
 ## When the key is ready (5 minutes)
 
-1. **Add the key.** Supabase → Edge Functions → Secrets → add `ANTHROPIC_API_KEY`. It works
-   right away; nothing needs redeploying.
+1. **Add the members list first.** Supabase → Edge Functions → Secrets → add `COTSI_MEMBERS`
+   with your own Google email (more emails separated by commas). Only these accounts can use
+   lessons and CV analysis; everyone else sees "Cotsi is open to founding members first".
+   Add a paying member's email here to let them in. `*` opens Cotsi to everyone.
+   **Add the key.** Same page → add `ANTHROPIC_API_KEY`. Both work right away; nothing needs
+   redeploying.
 2. **Check the API sees it.** Open
    `https://jytrpyoghkpcwbhvlgzh.supabase.co/functions/v1/api/health`.
    It should say `"ai":true`. If it says `false`, the secret name is misspelled.
@@ -23,7 +27,9 @@ If something fails, take a screenshot of the message and the step number.
 
 | You see | What it means | Fix |
 |---|---|---|
-| "Cotsi's AI connection isn't set up correctly" | The key is wrong or has no credit | Recheck the key in Supabase; add credit in the Console |
+| "Cotsi is open to founding members first" | Your email isn't in `COTSI_MEMBERS` | Add it in Supabase secrets, exactly as you sign in with Google |
+| "Cotsi's lessons are paused for a little while" | The Claude account is out of credit, or hit the spend limit you set | Add credit or raise the limit in the Claude Console |
+| "Cotsi's AI connection isn't set up correctly" | The key is wrong or was deleted | Recheck the key in Supabase |
 | "Cotsi is very busy right now" | The Anthropic account's rate limit was hit | Wait a minute. New accounts start with low limits that rise as you buy credit; the Console's Limits page shows your tier |
 | "Cotsi is at capacity for today" | The $10 daily site budget is used up | Raise `COTSI_DAILY_BUDGET_USD` in Supabase secrets |
 | "You've reached today's learning limit" | One person used $1.50 today | Raise `COTSI_USER_DAILY_USD` if it happens too early |

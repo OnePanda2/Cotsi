@@ -25,5 +25,14 @@ export function readEnv(get: (name: string) => string | undefined): Env {
     notReadyMessage:
       get("COTSI_NOT_READY_MESSAGE") ||
       "Cotsi is getting ready for launch. Lessons and CV analysis open very soon, and your account is all set.",
+    // Who may use lessons and CV analysis: emails separated by commas, or * for everyone.
+    // Empty means nobody yet, so adding the Claude key never opens the AI to the public by accident.
+    memberEmails: (get("COTSI_MEMBERS") || "")
+      .split(/[\s,;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+    membersOnlyMessage:
+      get("COTSI_MEMBERS_ONLY_MESSAGE") ||
+      "Cotsi is open to founding members first. Your account is ready, and lessons and CV analysis unlock as soon as your founding spot is confirmed. Get a spot at early.siddheshthapa.com/cotsi",
   };
 }

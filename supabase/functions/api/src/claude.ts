@@ -152,8 +152,19 @@ export function makeClaude(apiKey: string): ClaudeRunner {
   };
 }
 
+/** True when the Anthropic account is out of credit or has hit a spend limit (not a passing rate limit). */
+export function isOutOfCredit(err: unknown): boolean {
+  if (!(err instanceof Anthropic.BadRequestError || err instanceof Anthropic.RateLimitError)) return false;
+  const text = `${err.message} ${JSON.stringify((err as { error?: unknown }).error ?? "")}`;
+  return /credit balance|usage limits|enforced_spend_limit_reached/i.test(text);
+}
+
 /** Friendly message for the learner when a Claude call fails. */
 export function describeError(err: unknown): { status: number; message: string } {
+  if (isOutOfCredit(err)) {
+    console.error("Claude API: the account is out of credit or at its spend limit. Add credit or raise the limit in the Claude Console.");
+    return { status: 503, message: "Cotsi's lessons are paused for a little while. Your progress is saved. Please try again later." };
+  }
   if (err instanceof Anthropic.RateLimitError) {
     return { status: 429, message: "Cotsi is very busy right now. Please try again in a minute." };
   }
