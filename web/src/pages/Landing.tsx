@@ -58,10 +58,10 @@ export function Landing() {
           Early access · founding members first
         </p>
         <h1>
-          Upload your CV. <em>Learn only what you&apos;re missing.</em>
+          Upload your CV. <em>Get <span className="nw">job-ready</span> for the roles rising in your industry.</em>
         </h1>
         <p className="lede">
-          Cotsi finds the roles rising in your field, builds a syllabus of only the skills you&apos;re missing, and teaches it in short lessons that stick. You can also learn any topic or book.
+          Cotsi reads your CV, builds a syllabus of only the skills you&apos;re missing for those roles, and teaches it in short lessons that stick. You can also learn any topic or book.
         </p>
         <GoogleButton onClick={() => start()} label={label} />
       </section>

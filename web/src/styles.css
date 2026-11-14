@@ -82,6 +82,11 @@ h1 {
   text-wrap: balance;
 }
 
+/* keeps a hyphenated word like "job-ready" on one line in headlines */
+.nw {
+  white-space: nowrap;
+}
+
 h1 em,
 h2 em {
   font-style: normal;
