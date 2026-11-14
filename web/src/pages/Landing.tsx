@@ -4,6 +4,14 @@ import { config } from "../config";
 
 export const SECTIONS = [
   {
+    kind: "job",
+    icon: "🚀",
+    title: "Get job-ready",
+    text: "Upload your CV. Cotsi finds the roles rising in your field, builds a syllabus of only what you're missing, then helps you land the job.",
+    cta: "Upload my CV",
+    to: "/job",
+  },
+  {
     kind: "topic",
     icon: "💡",
     title: "Learn a topic",
@@ -18,14 +26,6 @@ export const SECTIONS = [
     text: "Get the core ideas of any book, what they mean for you, and a quick check that they stuck.",
     cta: "Pick a book",
     to: "/new/book",
-  },
-  {
-    kind: "job",
-    icon: "🚀",
-    title: "Get job-ready",
-    text: "Upload your CV. Cotsi finds the roles rising in your field, builds a syllabus of only what you're missing, then helps you land the job.",
-    cta: "Upload my CV",
-    to: "/job",
   },
 ] as const;
 
@@ -58,10 +58,10 @@ export function Landing() {
           Early access · founding members first
         </p>
         <h1>
-          Learn anything. <em>Get job-ready.</em>
+          Upload your CV. <em>Get <span className="nw">job-ready</span> for the roles rising in your industry.</em>
         </h1>
         <p className="lede">
-          Cotsi teaches through scenes with characters from the shows you love, starts with the 20% that matters, and makes sure it sticks.
+          Cotsi reads your CV, builds a syllabus of only the skills you&apos;re missing for those roles, and teaches it in short lessons that stick. You can also learn any topic or book.
         </p>
         <GoogleButton onClick={() => start()} label={label} />
       </section>
