@@ -57,6 +57,7 @@ await check("Website is connected to Supabase", async () => {
   const js = await (await get(new URL(src, `${SITE}/`).href)).text();
   expect(js.includes(`${REF}.supabase.co`), "the site wasn't built with the Supabase project address");
   expect(KEY && js.includes(KEY), "the site wasn't built with the publishable key");
+  expect(!/free while in early access/i.test(js), "the site still says \"Free while in early access\"");
   return "project address and publishable key are in the site";
 });
 
@@ -167,8 +168,11 @@ await check("Early-access page", async () => {
   expect(res.ok, `HTTP ${res.status}`);
   const at = text.match(/data-live-at="([^"]+)"/)?.[1];
   expect(at, "no launch switch on the page");
-  expect(text.includes(SITE), "the page doesn't link to the site");
-  return `switches to "Open Cotsi" at ${at}`;
+  expect(!/\bfree\b/i.test(text.replace(/<[^>]+>/g, " ")), "the page still says \"free\" somewhere");
+  expect(text.includes("Limited founding spots"), "the page is an old version (no \"Limited founding spots\")");
+  expect(/assets\/form\.js\?v=/.test(text), "the script link has no version fingerprint");
+  const label = text.match(/data-live-text="([^"]+)"/)?.[1] ?? "";
+  return `current version; switches to "${label}" at ${at}`;
 });
 
 const icon = { ok: "✅", warn: "⚠️", fail: "❌" };
