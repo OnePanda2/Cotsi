@@ -100,7 +100,7 @@ export function Home() {
       )}
 
       {me.usage.used >= 0.75 && (
-        <p className="fine center">You've used {Math.round(me.usage.used * 100)}% of today's free learning. It resets tomorrow.</p>
+        <p className="fine center">You've used {Math.round(me.usage.used * 100)}% of today's learning allowance. It resets tomorrow.</p>
       )}
     </div>
   );
