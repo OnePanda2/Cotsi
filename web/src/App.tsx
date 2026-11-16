@@ -1,9 +1,9 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError } from "./api";
-import logoUrl from "./assets/cotsi-logo.svg";
 import { useAuth } from "./auth";
 import { config } from "./config";
+import { Brand, Sidebar } from "./components/Sidebar";
 import { Home } from "./pages/Home";
 import { Job } from "./pages/Job";
 import { Landing } from "./pages/Landing";
@@ -33,35 +33,60 @@ export function rememberNext(path: string) {
   setItem("session", NEXT_KEY, path);
 }
 
+function Footer() {
+  return (
+    <footer className="foot">
+      <p>
+        Built by Siddhesh Thapa · <Link to="/privacy">Privacy</Link>
+      </p>
+      <p>Cotsi teaches with AI. It can be wrong, so check anything important.</p>
+    </footer>
+  );
+}
+
 function Shell({ children }: { children: ReactNode }) {
   const { signedIn } = useAuth();
+  const { me } = useMe();
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => setOpen(false), [location.pathname, location.search]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  if (!signedIn) {
+    return (
+      <div className="page">
+        <header className="top">
+          <Brand />
+        </header>
+        <main>{children}</main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
-    <>
-      <header className="top">
-        <Link className="brand" to="/" aria-label="Cotsi, Complex to Simple">
-          <img className="mark" src={logoUrl} alt="" aria-hidden="true" width="34" height="34" />
-          <span className="lockup" aria-hidden="true">
-            <span className="name">Cotsi</span>
-            <span className="sub">
-              <b>Co</b>mplex-<b>t</b>o-<b>Si</b>mple
-            </span>
-          </span>
-        </Link>
-        {signedIn && (
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/settings">Settings</Link>
-          </nav>
-        )}
-      </header>
-      <main>{children}</main>
-      <footer className="foot">
-        <p>
-          Built by Siddhesh Thapa · <Link to="/privacy">Privacy</Link>
-        </p>
-        <p>Cotsi teaches with AI. It can be wrong, so check anything important.</p>
-      </footer>
-    </>
+    <div className={`app${open ? " menu-open" : ""}`}>
+      <Sidebar me={me} onClose={() => setOpen(false)} />
+      <div className="scrim" onClick={() => setOpen(false)} aria-hidden="true" />
+      <div className="page">
+        <header className="top">
+          <button className="menu-btn" aria-label="Open menu" aria-expanded={open} onClick={() => setOpen(true)}>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <Brand />
+        </header>
+        <main>{children}</main>
+        <Footer />
+      </div>
+    </div>
   );
 }
 

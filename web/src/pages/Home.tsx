@@ -2,44 +2,11 @@ import { Link } from "react-router-dom";
 import { useMe } from "../App";
 import { NotReady } from "../components/NotReady";
 import { ReminderControl } from "../components/Reminders";
-import type { Me, TrackSummary } from "../types";
+import type { Me } from "../types";
 import { SECTIONS } from "./Landing";
-
-const ICON: Record<string, string> = { topic: "💡", book: "📖", job: "🚀" };
 
 export function reviewThread(today: string): string {
   return `review-${today.replace(/-/g, "")}`;
-}
-
-function TrackRow({ t }: { t: TrackSummary }) {
-  const pct = t.total ? Math.round((t.done / t.total) * 100) : 0;
-  return (
-    <li>
-      <Link className="card row" to={`/t/${t.id}`}>
-        <span className="icon" aria-hidden="true">
-          {ICON[t.kind]}
-        </span>
-        <span className="grow">
-          <b>{t.title}</b>
-          <small>
-            {t.total
-              ? `${t.done} of ${t.total} ${t.kind === "job" ? "milestones" : "ideas"} done`
-              : t.kind === "job"
-                ? "Syllabus not built yet"
-                : "Just started"}
-          </small>
-          {t.total > 0 && (
-            <span className="bar" aria-hidden="true">
-              <i style={{ width: `${pct}%` }} />
-            </span>
-          )}
-        </span>
-        <span className="arrow" aria-hidden="true">
-          →
-        </span>
-      </Link>
-    </li>
-  );
 }
 
 function weekday(day: string): string {
@@ -123,17 +90,6 @@ export function Home() {
                   </span>
                 </Link>
               </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {me.tracks.length > 0 && (
-        <section>
-          <h2 className="label">Continue</h2>
-          <ul className="list">
-            {me.tracks.map((t) => (
-              <TrackRow key={t.id} t={t} />
             ))}
           </ul>
         </section>
