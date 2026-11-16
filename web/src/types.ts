@@ -21,6 +21,7 @@ export type Me = {
   streak?: { current: number; best: number; doneToday: boolean; week: { day: string; on: boolean }[] };
   dream?: Dream | null;
   reminder?: { on: boolean; hour?: number };
+  terms?: { version: string; accepted: boolean };
 };
 
 export type DreamKind = "laptop" | "bike" | "car" | "home" | "family" | "travel" | "savings" | "other";

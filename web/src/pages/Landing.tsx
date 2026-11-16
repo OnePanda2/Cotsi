@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { rememberNext } from "../App";
 import { useAuth } from "../auth";
 import { config } from "../config";
@@ -64,6 +65,9 @@ export function Landing() {
           Cotsi reads your CV, builds a syllabus of only the skills you&apos;re missing for those roles, and teaches it in short lessons that stick. You can also learn any topic or book.
         </p>
         <GoogleButton onClick={() => start()} label={label} />
+        <p className="fine signin-note">
+          For ages 18+. By continuing you agree to the <Link to="/terms">Terms of Use</Link> and <Link to="/privacy">Privacy policy</Link>.
+        </p>
       </section>
 
       <section className="sections" aria-label="What you can do">

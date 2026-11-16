@@ -9,6 +9,8 @@ import { Job } from "./pages/Job";
 import { Landing } from "./pages/Landing";
 import { NewLesson } from "./pages/NewLesson";
 import { Privacy } from "./pages/Privacy";
+import { Terms } from "./pages/Terms";
+import { AcceptTerms } from "./components/AcceptTerms";
 import { Settings } from "./pages/Settings";
 import { TrackPage } from "./pages/TrackPage";
 import { getItem, removeItem, setItem } from "./storage";
@@ -19,6 +21,7 @@ const MeContext = createContext<MeState>({ me: null, reload: async () => {} });
 export const useMe = () => useContext(MeContext);
 
 const NEXT_KEY = "cotsi:next";
+const SIDE_KEY = "cotsi:side";
 
 /** The learner's time zone, so streak days and reminder times follow their own clock. */
 export function timeZone(): string {
@@ -37,7 +40,7 @@ function Footer() {
   return (
     <footer className="foot">
       <p>
-        Built by Siddhesh Thapa · <Link to="/privacy">Privacy</Link>
+        Built by Siddhesh Thapa · <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link>
       </p>
       <p>Cotsi teaches with AI. It can be wrong, so check anything important.</p>
     </footer>
@@ -48,7 +51,21 @@ function Shell({ children }: { children: ReactNode }) {
   const { signedIn } = useAuth();
   const { me } = useMe();
   const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(() => getItem("local", SIDE_KEY) === "hidden");
   const location = useLocation();
+  const wide = () => typeof window !== "undefined" && window.matchMedia?.("(min-width: 980px)").matches;
+  const hide = () => {
+    if (wide()) {
+      setHidden(true);
+      setItem("local", SIDE_KEY, "hidden");
+    } else setOpen(false);
+  };
+  const show = () => {
+    if (wide()) {
+      setHidden(false);
+      removeItem("local", SIDE_KEY);
+    } else setOpen(true);
+  };
 
   useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {
@@ -71,12 +88,12 @@ function Shell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={`app${open ? " menu-open" : ""}`}>
-      <Sidebar me={me} onClose={() => setOpen(false)} />
+    <div className={`app${open ? " menu-open" : ""}${hidden ? " side-hidden" : ""}`}>
+      <Sidebar me={me} onHide={hide} />
       <div className="scrim" onClick={() => setOpen(false)} aria-hidden="true" />
       <div className="page">
         <header className="top">
-          <button className="menu-btn" aria-label="Open menu" aria-expanded={open} onClick={() => setOpen(true)}>
+          <button className="menu-btn" aria-label="Show menu" aria-expanded={open} onClick={show}>
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
@@ -90,6 +107,13 @@ function Shell({ children }: { children: ReactNode }) {
   );
 }
 
+/** Signed-in pages wait until the learner has accepted the current Terms of Use. */
+function TermsGate({ children }: { children: ReactNode }) {
+  const { me } = useMe();
+  if (me?.terms && !me.terms.accepted) return <AcceptTerms />;
+  return <>{children}</>;
+}
+
 function SignedIn({ children }: { children: ReactNode }) {
   const { ready, signedIn } = useAuth();
   const location = useLocation();
@@ -98,7 +122,7 @@ function SignedIn({ children }: { children: ReactNode }) {
     rememberNext(location.pathname + location.search);
     return <Navigate to="/" replace />;
   }
-  return <>{children}</>;
+  return <TermsGate>{children}</TermsGate>;
 }
 
 export function App() {
@@ -146,8 +170,17 @@ export function App() {
       <Shell>
         {error && <div className="notice error">{error}</div>}
         <Routes>
-          <Route path="/" element={!ready ? <p className="muted center">Loading…</p> : signedIn ? <Home /> : <Landing />} />
+          <Route path="/" element={!ready ? <p className="muted center">Loading…</p> : signedIn ? (
+                  <TermsGate>
+                    <Home />
+                  </TermsGate>
+                ) : (
+                  <Landing />
+                )
+              }
+            />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
           <Route path="/new/:kind" element={<SignedIn><NewLesson /></SignedIn>} />
           <Route path="/t/:id" element={<SignedIn><TrackPage /></SignedIn>} />
           <Route path="/job" element={<SignedIn><Job /></SignedIn>} />

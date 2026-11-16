@@ -7,7 +7,7 @@ export function Privacy() {
       <p>Cotsi is built by Siddhesh Thapa. This page says what Cotsi stores and why, in plain words.</p>
       <h2>What Cotsi stores</h2>
       <ul>
-        <li>Your Google name and email, to sign you in.</li>
+        <li>Your Google name and email, to sign you in, and when you accepted the <Link to="/terms">Terms of Use</Link>.</li>
         <li>Your lessons, answers and progress, so you can continue where you left off, and the days you learned, for your streak.</li>
         <li>If you choose one: the goal you're working towards (for example, a bike), shown on your progress bar and in reminders.</li>
         <li>

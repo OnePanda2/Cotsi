@@ -73,7 +73,12 @@ type UserRecord = {
   dream?: Dream;
   /** Daily reminder hour (0–23, their time) while reminders are on. */
   reminder?: { hour: number };
+  /** Which version of the Terms of Use they accepted, and when. */
+  terms?: { version: string; at: string };
 };
+
+/** Bump when the Terms of Use change in a way learners must accept again (matches web/src/pages/Terms.tsx). */
+export const TERMS_VERSION = "2026-11-16";
 
 /** One device's reminder subscription, kept under the site-wide user so the hourly run can list them all. */
 type PushEntry = { user: string; sub: PushSubscription; hour: number; tz?: string; lastSent?: string };
@@ -191,11 +196,14 @@ export function isMember(memberEmails: string[], email: string): boolean {
   return e !== "" && memberEmails.includes(e);
 }
 
-type Access = { ready: true } | { ready: false; message: string; code: "not_ready" | "members_only" };
+type Access = { ready: true } | { ready: false; message: string; code: "not_ready" | "members_only" | "terms" };
 
 /** Whether this learner can use the AI right now, and what to tell them if not. */
-function aiAccess(deps: Deps, user: User): Access {
+function aiAccess(deps: Deps, user: User, rec: UserRecord): Access {
   if (deps.aiReady === false) return { ready: false, message: deps.env.notReadyMessage, code: "not_ready" };
+  if (rec.terms?.version !== TERMS_VERSION) {
+    return { ready: false, message: "Please read and accept the Terms of Use to start learning.", code: "terms" };
+  }
   if (!isMember(deps.env.memberEmails, user.email)) {
     return { ready: false, message: deps.env.membersOnlyMessage, code: "members_only" };
   }
@@ -203,7 +211,7 @@ function aiAccess(deps: Deps, user: User): Access {
 }
 
 async function requireBudget(deps: Deps, user: User, kind: "reply" | "analysis" | "step" = "reply") {
-  const access = aiAccess(deps, user);
+  const access = aiAccess(deps, user, await loadUser(deps, user));
   if (!access.ready) throw new HttpError(access.code === "not_ready" ? 503 : 403, access.message, access.code);
   const status = await checkBudget(deps.store, user.id, limits(deps.env), now(deps), kind);
   if (!status.ok) throw new HttpError(429, status.message!, status.reason);
@@ -310,6 +318,7 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
   if (m === "DELETE" && path === "/me") return deleteMe(user, deps);
   if (m === "PUT" && path === "/prefs") return putPrefs(req, user, deps);
   if (m === "PUT" && path === "/dream") return putDream(req, user, deps);
+  if (m === "PUT" && path === "/terms") return putTerms(req, user, deps);
   if (m === "GET" && path === "/push/key") return json({ key: (await vapidKeys(deps)).publicKey });
   if (m === "PUT" && path === "/push") return putPush(req, user, deps);
   if (m === "DELETE" && path === "/push") return deletePush(user, deps);
@@ -352,12 +361,13 @@ async function getMe(url: URL, user: User, deps: Deps): Promise<Response> {
     today: now(deps).toISOString().slice(0, 10),
     usage: { used: Math.min(1, (usage?.cost ?? 0) / deps.env.userDailyUsd) },
     ai: (() => {
-      const access = aiAccess(deps, user);
+      const access = aiAccess(deps, user, rec);
       return access.ready ? { ready: true } : { ready: false, message: access.message };
     })(),
     streak: streakView(streak, localDay(now(deps), rec.tz)),
     dream: rec.dream ?? null,
     reminder: rec.reminder ? { on: true, hour: rec.reminder.hour } : { on: false },
+    terms: { version: TERMS_VERSION, accepted: rec.terms?.version === TERMS_VERSION },
   });
 }
 
@@ -596,6 +606,16 @@ async function countToday(deps: Deps, user: User, tz?: string): Promise<void> {
   }
 }
 
+async function putTerms(req: Request, user: User, deps: Deps): Promise<Response> {
+  const input = await body<{ version?: string; adult?: boolean }>(req);
+  if (input.version !== TERMS_VERSION) throw new HttpError(409, "The Terms of Use were just updated. Please reload the page and read them again.");
+  if (input.adult !== true) throw new HttpError(400, "Cotsi is for people aged 18 or older.");
+  const rec = await loadUser(deps, user);
+  rec.terms = { version: TERMS_VERSION, at: now(deps).toISOString() };
+  await deps.store.put(user.id, "user", rec);
+  return json({ terms: { version: TERMS_VERSION, accepted: true } });
+}
+
 async function putDream(req: Request, user: User, deps: Deps): Promise<Response> {
   const input = await body<unknown>(req);
   let dream: Dream;
@@ -669,7 +689,7 @@ async function runReminders(deps: Deps): Promise<Record<string, number | boolean
         await deps.store.del(GLOBAL_USER, key);
         continue;
       }
-      if (!isMember(deps.env.memberEmails, rec.email)) continue;
+      if (!isMember(deps.env.memberEmails, rec.email) || rec.terms?.version !== TERMS_VERSION) continue;
       const view = streakView(streak, day);
       if (view.doneToday) {
         counts.learned++; // already learned today: no nudge needed

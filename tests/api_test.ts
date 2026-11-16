@@ -1,7 +1,10 @@
 // End-to-end tests of the API with the mock AI and an in-memory store.
 //   deno test -A --config supabase/functions/api/deno.json tests/api_test.ts
 import Anthropic from "@anthropic-ai/sdk";
-import { extractState, handle, isMember } from "../supabase/functions/api/src/app.ts";
+import { extractState, handle, isMember, TERMS_VERSION } from "../supabase/functions/api/src/app.ts";
+
+// deno-lint-ignore no-explicit-any
+type Called = { status: number; json: any; events: any[]; headers: Headers };
 import { describeError, isOutOfCredit } from "../supabase/functions/api/src/claude.ts";
 import { readEnv } from "../supabase/functions/api/src/config.ts";
 import { makeMockClaude } from "../supabase/functions/api/src/mock.ts";
@@ -26,7 +29,12 @@ function setup(overrides: Record<string, string> = {}) {
     aiReady: true as boolean,
     pushFetch: undefined as typeof fetch | undefined,
   };
-  const call = async (method: string, path: string, body?: unknown, token = "dev:riya") => {
+  const accepted = new Set<string>();
+  const call = async (method: string, path: string, body?: unknown, token = "dev:riya"): Promise<Called> => {
+    if (!accepted.has(token) && path !== "/terms" && !overrides.NO_AUTO_TERMS) {
+      accepted.add(token);
+      await call("PUT", "/terms", { version: TERMS_VERSION, adult: true }, token);
+    }
     const res = await handle(
       new Request(`https://x.supabase.co/functions/v1/api${path}`, {
         method,
@@ -312,6 +320,20 @@ Deno.test("streak, dream and daily reminders", async () => {
   await call("PUT", "/push", { subscription: sub, hour: 7 });
   await call("DELETE", "/me");
   assert((await store.list("_global", "push:")).length === 0, "deleting the account removes the reminder");
+});
+
+Deno.test("the Terms of Use must be accepted before the AI answers", async () => {
+  const { call } = setup({ NO_AUTO_TERMS: "1" });
+  const me = await call("GET", "/me");
+  assert(me.json.terms.accepted === false && me.json.terms.version === TERMS_VERSION, "not yet accepted");
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" })).json.track.id;
+  const blocked = await call("POST", `/tracks/${id}/chat`, {});
+  assert(blocked.status === 403 && blocked.json.code === "terms", "lessons wait for acceptance");
+  assert((await call("PUT", "/terms", { version: TERMS_VERSION })).status === 400, "must confirm 18+");
+  assert((await call("PUT", "/terms", { version: "old", adult: true })).status === 409, "must accept the current version");
+  assert((await call("PUT", "/terms", { version: TERMS_VERSION, adult: true })).status === 200, "accepted");
+  assert((await call("GET", "/me")).json.terms.accepted === true, "me shows accepted");
+  assert((await call("POST", `/tracks/${id}/chat`, {})).status === 200, "lessons open");
 });
 
 Deno.test("users are isolated; delete removes everything", async () => {

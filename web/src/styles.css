@@ -1922,6 +1922,52 @@ fieldset:disabled .option {
   margin: 20px 12px 6px;
 }
 
+.side-list li {
+  position: relative;
+}
+
+.side-list li.busy {
+  opacity: 0.5;
+}
+
+.side-list a {
+  padding-right: 44px;
+}
+
+.side-del {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.side-del:hover,
+.side-del:focus-visible {
+  opacity: 1;
+  color: var(--bad);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+@media (hover: hover) {
+  .side-del {
+    opacity: 0;
+  }
+  .side-list li:hover .side-del,
+  .side-del:focus-visible {
+    opacity: 1;
+  }
+}
+
 .side-list {
   list-style: none;
   margin: 0;
@@ -1978,11 +2024,63 @@ fieldset:disabled .option {
     box-shadow: none;
   }
   .app .top,
-  .side-close,
   .scrim {
     display: none !important;
+  }
+  .app.side-hidden {
+    padding-left: 0;
+  }
+  .app.side-hidden .side {
+    transform: translateX(-102%);
+  }
+  .app.side-hidden .top {
+    display: flex !important;
   }
   .app main {
     padding-top: 24px;
   }
+}
+
+/* ---------- terms ---------- */
+
+.accept {
+  max-width: 560px;
+  margin: 24px auto 0;
+}
+
+.accept-points {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.accept-points li {
+  display: flex;
+  gap: 10px;
+  color: #d9d4ec;
+}
+
+.accept-check {
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.accept-check a {
+  color: #b8adff;
+}
+
+.terms h2 {
+  margin-top: 28px;
+}
+
+.signin-note {
+  margin: 14px auto 0;
+  max-width: 30em;
+  text-align: center;
+}
+
+.signin-note a {
+  color: inherit;
 }

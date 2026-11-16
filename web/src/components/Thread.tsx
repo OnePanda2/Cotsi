@@ -173,7 +173,7 @@ export function Thread(props: Props) {
   const empty = list.length === 0 && !busy;
   // Daily limits, the pre-launch wait and the members-only note aren't errors the learner can fix by retrying.
   const calm =
-    error?.code === "site_full" || error?.code === "user_limit" || error?.code === "not_ready" || error?.code === "members_only";
+    error?.code === "site_full" || error?.code === "user_limit" || error?.code === "not_ready" || error?.code === "members_only" || error?.code === "terms";
 
   return (
     <div className="thread">
