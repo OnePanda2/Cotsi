@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 export const TERMS_VERSION = "2026-11-16";
 export const TERMS_UPDATED = "16 November 2026";
 /** Where complaints and questions go. Shown on this page as the grievance contact. */
-export const CONTACT_EMAIL = "";
+export const CONTACT_EMAIL = "siddeshthapa02@gmail.com";
 
 function Contact() {
   return CONTACT_EMAIL ? <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> : <b>[contact email to be added]</b>;
