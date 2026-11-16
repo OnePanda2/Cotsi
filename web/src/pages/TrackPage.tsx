@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { Thread } from "../components/Thread";
-import type { Track } from "../types";
+import { DREAMS, dreamInfo } from "../dreams";
+import type { DreamKind, Roadmap, Track } from "../types";
 import { reviewThread } from "./Home";
 
 const QUICK = ["Skip", "Hint", "Simpler", "Deeper"];
@@ -47,12 +48,115 @@ function MapBar({ track }: { track: Track }) {
   );
 }
 
+const EXAMPLES: Record<DreamKind, string> = {
+  laptop: "e.g. MacBook Air",
+  bike: "e.g. Royal Enfield Classic",
+  car: "e.g. Tata Nexon",
+  home: "e.g. a 2BHK in Nashik",
+  family: "e.g. paying for my sister's college",
+  travel: "e.g. Goa with friends",
+  savings: "e.g. an emergency fund",
+  other: "What are you working towards?",
+};
+
+/** Asks once what getting the job will change for the learner. */
+function DreamPicker({ onDone }: { onDone: () => void }) {
+  const { reload } = useMe();
+  const [kind, setKind] = useState<DreamKind | null>(null);
+  const [text, setText] = useState("");
+  const [note, setNote] = useState("");
+  const save = async () => {
+    try {
+      await api("PUT", "/dream", { kind, text });
+      await reload();
+      onDone();
+    } catch (err) {
+      setNote(err instanceof ApiError ? err.message : "Couldn't save that.");
+    }
+  };
+  return (
+    <div className="dream-pick">
+      <b>What will this job change for you?</b>
+      <small>It shows on your progress bar and in reminders. Only you see it.</small>
+      <div className="chips dream-chips">
+        {DREAMS.map((d) => (
+          <button key={d.kind} className={`chip${kind === d.kind ? " on" : ""}`} onClick={() => setKind(d.kind)} aria-pressed={kind === d.kind}>
+            {d.emoji} {d.label}
+          </button>
+        ))}
+      </div>
+      {kind && (
+        <div className="dream-row">
+          <input
+            type="text"
+            value={text}
+            maxLength={60}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={EXAMPLES[kind]}
+            aria-label="Name it (optional)"
+          />
+          <button className="btn small" onClick={() => void save()}>
+            Save
+          </button>
+        </div>
+      )}
+      {note && <p className="fine">{note}</p>}
+    </div>
+  );
+}
+
+/** Share of the syllabus done, weighted by each milestone's hours. */
+export function readiness(roadmap: Roadmap, done: Set<number>): number {
+  const weight = (m: Roadmap["milestones"][number]) => (m.hours && m.hours > 0 ? m.hours : 1);
+  const total = roadmap.milestones.reduce((n, m) => n + weight(m), 0);
+  const got = roadmap.milestones.filter((m) => done.has(m.n)).reduce((n, m) => n + weight(m), 0);
+  return total ? Math.round((got / total) * 100) : 0;
+}
+
+/** The progress bar towards being job-ready, tied to what the job means to the learner. */
+function DreamProgress({ roadmap, done }: { roadmap: Roadmap; done: Set<number> }) {
+  const { me } = useMe();
+  const [editing, setEditing] = useState(false);
+  const pct = readiness(roadmap, done);
+  const dream = me?.dream ? dreamInfo(me.dream) : null;
+  const line = !dream
+    ? ""
+    : pct === 0
+      ? `Milestone 1 is your first step towards ${dream.phrase}.`
+      : pct < 100
+        ? `Every milestone brings ${dream.phrase} closer.`
+        : `Syllabus done. Time to go after the job behind ${dream.phrase}.`;
+  return (
+    <div className="dream-progress">
+      <div className="dream-head">
+        <b>{pct}% job-ready</b>
+        <small>
+          {done.size} of {roadmap.milestones.length} milestones
+        </small>
+      </div>
+      <div className="bar big" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Job-ready">
+        <i style={{ width: `${Math.max(pct, 2)}%` }} />
+      </div>
+      {dream && !editing ? (
+        <p className="dream-line">
+          <span aria-hidden="true">{dream.emoji}</span> {line}{" "}
+          <button className="link" onClick={() => setEditing(true)}>
+            Change
+          </button>
+        </p>
+      ) : (
+        <DreamPicker onDone={() => setEditing(false)} />
+      )}
+    </div>
+  );
+}
+
 function JobPath({ track, thread, setThread }: { track: Track; thread: string; setThread: (t: string) => void }) {
   const role = track.job!.role;
   const roadmap = track.state.roadmap;
   const done = new Set(track.job?.milestonesDone ?? []);
   const tab = thread === "hunt" ? "hunt" : thread === "edge" ? "edge" : "learn";
-  const pct = roadmap ? Math.round((done.size / roadmap.milestones.length) * 100) : 0;
+  const pct = roadmap ? readiness(roadmap, done) : 0;
   const next = roadmap?.milestones.find((m) => !done.has(m.n));
   return (
     <>
@@ -73,9 +177,7 @@ function JobPath({ track, thread, setThread }: { track: Track; thread: string; s
           <p className="fine">
             🎯 {roadmap.outcome} · 🏆 {roadmap.capstone}
           </p>
-          <div className="bar big" aria-label={`${pct}% complete`}>
-            <i style={{ width: `${pct}%` }} />
-          </div>
+          <DreamProgress roadmap={roadmap} done={done} />
           <ol className="milestones">
             {roadmap.milestones.map((m) => (
               <li key={m.n}>

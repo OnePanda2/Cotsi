@@ -106,7 +106,7 @@ cd web && npm install
 VITE_DEV_AUTH=1 VITE_API_URL=http://localhost:8787/api npm run dev       # the pages
 ```
 
-Tests: `deno test -A --config supabase/functions/api/deno.json tests/api_test.ts`
+Tests: `deno test -A --config supabase/functions/api/deno.json tests/`
 
 After editing anything in `skills/cotsi/`, run `node scripts/gen-prompts.mjs` so the website
 teaches from the new version.

@@ -31,7 +31,7 @@ jobs:
           node scripts/gen-prompts.mjs
           git diff --exit-code -- supabase/functions/api/src/prompts.generated.ts
       - name: API tests
-        run: deno test -A --config supabase/functions/api/deno.json tests/api_test.ts
+        run: deno test -A --config supabase/functions/api/deno.json tests/
       - name: Build the website
         working-directory: web
         env:

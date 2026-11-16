@@ -1,7 +1,7 @@
 // HTTP API for the Cotsi web app. Runtime-neutral: it only needs fetch-style Request and
 // Response, so the same handler runs on Supabase Edge Functions and in local tests.
 
-import { checkBudget, dayKey, recordSpend } from "./budget.ts";
+import { checkBudget, dayKey, GLOBAL_USER, recordSpend } from "./budget.ts";
 import { type ChatMessage, type ClaudeRunner, describeError, type RunResult } from "./claude.ts";
 import {
   edgeSystem,
@@ -21,7 +21,19 @@ import {
   type Signal,
   SIGNALS,
 } from "./prompts.ts";
+import {
+  cleanDream,
+  type Dream,
+  localDay,
+  localHour,
+  recordDay,
+  reminderText,
+  type Streak,
+  streakView,
+  validTz,
+} from "./engage.ts";
 import type { Store } from "./store.ts";
+import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
 import type {
   CotsiState,
   Env,
@@ -46,9 +58,27 @@ export type Deps = {
   now?: () => Date;
   /** False while no Claude API key is set: learners can sign in, and lessons wait for launch. */
   aiReady?: boolean;
+  /** How reminders reach browser push services (tests pass a fake). */
+  pushFetch?: typeof fetch;
 };
 
-type UserRecord = { email: string; name: string; prefs: Prefs; createdAt: string };
+type UserRecord = {
+  email: string;
+  name: string;
+  prefs: Prefs;
+  createdAt: string;
+  /** The learner's time zone, from their browser; days and reminder times follow it. */
+  tz?: string;
+  /** What getting the job will change for them, shown on the progress bar and in reminders. */
+  dream?: Dream;
+  /** Daily reminder hour (0–23, their time) while reminders are on. */
+  reminder?: { hour: number };
+};
+
+/** One device's reminder subscription, kept under the site-wide user so the hourly run can list them all. */
+type PushEntry = { user: string; sub: PushSubscription; hour: number; tz?: string; lastSent?: string };
+
+const PUSH_SUBJECT = "https://cotsi.siddheshthapa.com";
 
 const DEFAULT_PREFS: Prefs = { style: "characters", shows: "", visuals: true };
 const MAX_HISTORY = 40;
@@ -70,6 +100,9 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname.replace(/^.*?\/api(?=\/|$)/, "") || "/";
     if (path === "/health") return json(await health(deps, url.searchParams.has("deep")), 200, cors);
+    // Called every hour by a scheduled GitHub workflow. Safe for anyone to call: it only sends
+    // reminders that are due anyway, at most once per learner per day, and runs at most every 10 minutes.
+    if (req.method === "POST" && path === "/cron/reminders") return json(await runReminders(deps), 200, cors);
 
     const user = await authenticate(req, deps);
     const res = await route(req, path, url, user, deps);
@@ -273,9 +306,13 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
   const m = req.method;
   const seg = path.split("/").filter(Boolean);
 
-  if (m === "GET" && path === "/me") return getMe(user, deps);
+  if (m === "GET" && path === "/me") return getMe(url, user, deps);
   if (m === "DELETE" && path === "/me") return deleteMe(user, deps);
   if (m === "PUT" && path === "/prefs") return putPrefs(req, user, deps);
+  if (m === "PUT" && path === "/dream") return putDream(req, user, deps);
+  if (m === "GET" && path === "/push/key") return json({ key: (await vapidKeys(deps)).publicKey });
+  if (m === "PUT" && path === "/push") return putPush(req, user, deps);
+  if (m === "DELETE" && path === "/push") return deletePush(user, deps);
 
   if (m === "POST" && path === "/tracks") return createTrack(req, user, deps);
   if (seg[0] === "tracks" && seg[1]) {
@@ -293,12 +330,18 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
   throw new HttpError(404, "Not found.");
 }
 
-async function getMe(user: User, deps: Deps): Promise<Response> {
-  const [rec, tracks, usage] = await Promise.all([
+async function getMe(url: URL, user: User, deps: Deps): Promise<Response> {
+  const [rec, tracks, usage, streak] = await Promise.all([
     loadUser(deps, user),
     deps.store.list<Track>(user.id, "track:"),
     deps.store.get<Record<string, number>>(user.id, dayKey(now(deps))),
+    deps.store.get<Streak>(user.id, "streak"),
   ]);
+  const tz = validTz(url.searchParams.get("tz"));
+  if (tz && tz !== rec.tz) {
+    rec.tz = tz;
+    await deps.store.put(user.id, "user", rec);
+  }
   const summaries = tracks
     .map((t) => trackSummary(t.value))
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
@@ -312,11 +355,15 @@ async function getMe(user: User, deps: Deps): Promise<Response> {
       const access = aiAccess(deps, user);
       return access.ready ? { ready: true } : { ready: false, message: access.message };
     })(),
+    streak: streakView(streak, localDay(now(deps), rec.tz)),
+    dream: rec.dream ?? null,
+    reminder: rec.reminder ? { on: true, hour: rec.reminder.hour } : { on: false },
   });
 }
 
 async function deleteMe(user: User, deps: Deps): Promise<Response> {
   await deps.store.deleteUser(user.id);
+  await deps.store.del(GLOBAL_USER, `push:${user.id}`);
   if (deps.deleteAccount) await deps.deleteAccount(user.id).catch((e) => console.error("deleteAccount", e));
   return json({ ok: true });
 }
@@ -532,8 +579,124 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
     }
     track.updatedAt = now(deps).toISOString();
     await Promise.all([deps.store.put(user.id, key, history), deps.store.put(user.id, `track:${id}`, track)]);
+    // A day counts toward the streak once the learner answers or asks something (opening a lesson doesn't).
+    if (text) await countToday(deps, user, rec.tz);
     send({ t: "done", track, sources: result.sources.slice(0, 30), cut: result.stopReason === "max_tokens" });
   });
+}
+
+// ------------------------------------------------------------------ streak, dream, reminders
+
+async function countToday(deps: Deps, user: User, tz?: string): Promise<void> {
+  try {
+    const next = recordDay(await deps.store.get<Streak>(user.id, "streak"), localDay(now(deps), tz));
+    if (next) await deps.store.put(user.id, "streak", next);
+  } catch (err) {
+    console.error("streak", err); // never fail a lesson over the streak
+  }
+}
+
+async function putDream(req: Request, user: User, deps: Deps): Promise<Response> {
+  const input = await body<unknown>(req);
+  let dream: Dream;
+  try {
+    dream = cleanDream(input);
+  } catch (err) {
+    throw new HttpError(400, (err as Error).message);
+  }
+  const rec = await loadUser(deps, user);
+  rec.dream = dream;
+  await deps.store.put(user.id, "user", rec);
+  return json({ dream });
+}
+
+/** The server's push signing keys, made on first use and kept in the database (never in the code). */
+async function vapidKeys(deps: Deps): Promise<VapidKeys> {
+  const saved = await deps.store.get<VapidKeys>(GLOBAL_USER, "vapid");
+  if (saved) return saved;
+  await deps.store.put(GLOBAL_USER, "vapid", await generateVapidKeys());
+  return (await deps.store.get<VapidKeys>(GLOBAL_USER, "vapid"))!;
+}
+
+async function putPush(req: Request, user: User, deps: Deps): Promise<Response> {
+  const input = await body<{ subscription?: PushSubscription; hour?: number; tz?: string }>(req);
+  const sub = input.subscription;
+  if (!sub || !isPushEndpoint(sub.endpoint) || typeof sub.keys?.p256dh !== "string" || typeof sub.keys?.auth !== "string") {
+    throw new HttpError(400, "This browser's notification details weren't valid. Please try again.");
+  }
+  const hour = Math.round(Number(input.hour));
+  if (!(hour >= 0 && hour <= 23)) throw new HttpError(400, "Pick a reminder time.");
+  const rec = await loadUser(deps, user);
+  rec.tz = validTz(input.tz) ?? rec.tz;
+  rec.reminder = { hour };
+  const entry: PushEntry = {
+    user: user.id,
+    sub: { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh.slice(0, 200), auth: sub.keys.auth.slice(0, 100) } },
+    hour,
+    tz: rec.tz,
+  };
+  await Promise.all([deps.store.put(user.id, "user", rec), deps.store.put(GLOBAL_USER, `push:${user.id}`, entry)]);
+  return json({ reminder: { on: true, hour } });
+}
+
+async function deletePush(user: User, deps: Deps): Promise<Response> {
+  const rec = await loadUser(deps, user);
+  delete rec.reminder;
+  await Promise.all([deps.store.put(user.id, "user", rec), deps.store.del(GLOBAL_USER, `push:${user.id}`)]);
+  return json({ reminder: { on: false } });
+}
+
+/** Sends today's reminder to everyone whose reminder time has passed and who hasn't learned yet today. */
+async function runReminders(deps: Deps): Promise<Record<string, number | boolean>> {
+  const at = now(deps);
+  const last = await deps.store.get<{ at: string }>(GLOBAL_USER, "cron:reminders");
+  if (last && at.getTime() - new Date(last.at).getTime() < 10 * 60_000) return { ok: true, throttled: true };
+  await deps.store.put(GLOBAL_USER, "cron:reminders", { at: at.toISOString() });
+  if (deps.aiReady === false) return { ok: true, sent: 0 };
+
+  const entries = await deps.store.list<PushEntry>(GLOBAL_USER, "push:");
+  let keys: VapidKeys | null = null;
+  const counts = { sent: 0, learned: 0, gone: 0, failed: 0 };
+  for (const { key, value: e } of entries) {
+    const day = localDay(at, e.tz);
+    if (e.lastSent === day || localHour(at, e.tz) < e.hour) continue;
+    try {
+      const [rec, streak] = await Promise.all([
+        deps.store.get<UserRecord>(e.user, "user"),
+        deps.store.get<Streak>(e.user, "streak"),
+      ]);
+      if (!rec) {
+        await deps.store.del(GLOBAL_USER, key);
+        continue;
+      }
+      if (!isMember(deps.env.memberEmails, rec.email)) continue;
+      const view = streakView(streak, day);
+      if (view.doneToday) {
+        counts.learned++; // already learned today: no nudge needed
+      } else {
+        keys ??= await vapidKeys(deps);
+        const status = await sendPush(e.sub, reminderText(view, rec.dream), keys, PUSH_SUBJECT, at, deps.pushFetch);
+        if (status === 404 || status === 410) {
+          // The browser unsubscribed or the person blocked notifications.
+          delete rec.reminder;
+          await Promise.all([deps.store.del(GLOBAL_USER, key), deps.store.put(e.user, "user", rec)]);
+          counts.gone++;
+          continue;
+        }
+        if (status < 200 || status >= 300) {
+          console.error("push failed", status);
+          counts.failed++;
+          continue; // try again next hour
+        }
+        counts.sent++;
+      }
+      await deps.store.put(GLOBAL_USER, key, { ...e, lastSent: day });
+    } catch (err) {
+      console.error("reminder", err);
+      counts.failed++;
+    }
+  }
+  return { ok: true, ...counts };
 }
 
 // ------------------------------------------------------------------ job preparation

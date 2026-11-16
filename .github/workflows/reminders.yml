@@ -1,0 +1,26 @@
+name: Daily reminders
+
+# Every hour, asks the Cotsi API to send the day's learning reminders that are due.
+# The API decides who gets one: people who turned reminders on, whose reminder time has
+# passed in their own time zone, and who haven't learned yet today. One per person per day.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send due reminders
+        env:
+          REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -z "$REF" ]; then echo "SUPABASE_PROJECT_REF isn't set"; exit 1; fi
+          curl -fsS --retry 2 -X POST "https://$REF.supabase.co/functions/v1/api/cron/reminders"
+          echo

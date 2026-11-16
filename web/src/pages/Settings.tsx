@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { useAuth } from "../auth";
+import { ReminderControl } from "../components/Reminders";
 import type { Prefs } from "../types";
 import { StylePicker } from "./NewLesson";
 
@@ -50,6 +51,9 @@ export function Settings() {
         Save
       </button>
       {note && <p className="fine" role="status">{note}</p>}
+      <hr />
+      <h2 className="label">Daily reminder</h2>
+      <ReminderControl />
       <hr />
       <button className="btn ghost" onClick={() => void signOut()}>
         Sign out

@@ -24,6 +24,7 @@ function setup(overrides: Record<string, string> = {}) {
     verifyToken: (t: string) => Promise.resolve(t.startsWith("dev:") ? { id: t, email: `${t.slice(4)}@x.com`, name: "Riya Sharma" } : null),
     now: () => clock,
     aiReady: true as boolean,
+    pushFetch: undefined as typeof fetch | undefined,
   };
   const call = async (method: string, path: string, body?: unknown, token = "dev:riya") => {
     const res = await handle(
@@ -41,7 +42,13 @@ function setup(overrides: Record<string, string> = {}) {
     }
     return { status: res.status, json: await res.json(), events: [], headers: res.headers };
   };
-  return { call, store, deps, setClock: (d: string) => (clock = new Date(d)) };
+  return {
+    call,
+    store,
+    deps,
+    setClock: (d: string) => (clock = new Date(d)),
+    tick: (ms: number) => (clock = new Date(clock.getTime() + ms)),
+  };
 }
 
 const PDF = "JVBERi0xLjQK" + "A".repeat(400);
@@ -247,6 +254,64 @@ Deno.test("an empty Claude account shows a calm 'paused' note, not 'rephrase'", 
     new Headers(),
   );
   assert(!isOutOfCredit(bad), "other bad requests are unchanged");
+});
+
+Deno.test("streak, dream and daily reminders", async () => {
+  const { call, deps, store, tick } = setup();
+  const me0 = await call("GET", "/me?tz=Asia/Kolkata");
+  assert(me0.json.streak.current === 0 && me0.json.dream === null && me0.json.reminder.on === false, "starts empty");
+
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Recursion" })).json.track.id;
+  await call("POST", `/tracks/${id}/chat`, {});
+  assert((await call("GET", "/me")).json.streak.current === 0, "opening a lesson doesn't count");
+  await call("POST", `/tracks/${id}/chat`, { message: "A function calling itself" });
+  const me1 = (await call("GET", "/me")).json;
+  assert(me1.streak.current === 1 && me1.streak.doneToday, "answering counts today");
+
+  assert((await call("PUT", "/dream", { kind: "other" })).status === 400, "'something else' needs words");
+  const dream = await call("PUT", "/dream", { kind: "bike", text: "Royal Enfield" });
+  assert(dream.status === 200 && (await call("GET", "/me")).json.dream.text === "Royal Enfield", "dream saved");
+
+  const key = await call("GET", "/push/key");
+  assert(key.status === 200 && key.json.key.length > 80, "push key made on first use");
+  assert((await call("GET", "/push/key")).json.key === key.json.key, "and kept");
+  const bad = await call("PUT", "/push", { subscription: { endpoint: "https://evil.example.com/x", keys: { p256dh: "a", auth: "b" } }, hour: 20 });
+  assert(bad.status === 400, "only real push services");
+
+  // A real browser subscription key pair, so the encryption step runs for real.
+  const ua = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"])) as CryptoKeyPair;
+  const p256dh = btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("raw", ua.publicKey)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const sub = { endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh, auth: "BTBZMqHH6r4Tts7J_aSIgg" } };
+  const on = await call("PUT", "/push", { subscription: sub, hour: 20, tz: "Asia/Kolkata" });
+  assert(on.status === 200 && (await call("GET", "/me")).json.reminder.hour === 20, "reminder on at 8 pm");
+
+  const sent: { url: string; auth: string }[] = [];
+  deps.pushFetch = (url, init) => {
+    sent.push({ url: String(url), auth: String((init?.headers as Record<string, string>).Authorization) });
+    return Promise.resolve(new Response(null, { status: 201 }));
+  };
+  const cron = () => handle(new Request("https://x.supabase.co/functions/v1/api/cron/reminders", { method: "POST" }), deps).then((r) => r.json());
+
+  // The test clock starts at 10:00 UTC = 15:30 in India: before the reminder hour.
+  assert((await cron()).sent === 0 && sent.length === 0, "nothing before 8 pm");
+  assert((await cron()).throttled === true, "calls within 10 minutes are ignored");
+  tick(5 * 3600_000); // 20:30 in India, and they already learned today
+  const r1 = await cron();
+  assert(r1.sent === 0 && r1.learned === 1, "no nudge for someone who learned today");
+  tick(24 * 3600_000); // next day 20:30: hasn't learned yet
+  const r2 = await cron();
+  assert(r2.sent === 1 && sent[0].url === sub.endpoint && sent[0].auth.startsWith("vapid t="), "reminder sent");
+  tick(3600_000);
+  assert((await cron()).sent === 0, "only one reminder a day");
+
+  deps.pushFetch = () => Promise.resolve(new Response(null, { status: 410 }));
+  tick(24 * 3600_000);
+  const r3 = await cron();
+  assert(r3.gone === 1 && (await call("GET", "/me")).json.reminder.on === false, "a blocked browser turns reminders off");
+
+  await call("PUT", "/push", { subscription: sub, hour: 7 });
+  await call("DELETE", "/me");
+  assert((await store.list("_global", "push:")).length === 0, "deleting the account removes the reminder");
 });
 
 Deno.test("users are isolated; delete removes everything", async () => {

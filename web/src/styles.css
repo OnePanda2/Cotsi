@@ -1643,3 +1643,184 @@ fieldset:disabled .option {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- streak, dream progress, reminders ---------- */
+
+.card.streak {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0 6px;
+  padding: 16px;
+}
+
+.card.streak.done {
+  border-color: rgba(251, 146, 60, 0.35);
+  background: linear-gradient(180deg, rgba(251, 146, 60, 0.08), rgba(255, 255, 255, 0.015));
+}
+
+.streak-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.streak-top b {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.flame {
+  font-size: 1.9rem;
+  line-height: 1;
+}
+
+.flame.off {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.best {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.week {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  text-align: center;
+}
+
+.week li {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.week i {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px dashed var(--line-strong);
+  font-style: normal;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.week li.on i {
+  border: 0;
+  color: #1a1206;
+  background: linear-gradient(135deg, #fb923c, #fbbf24);
+}
+
+.reminder {
+  display: grid;
+  gap: 8px;
+}
+
+.reminder.compact {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.reminder-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.reminder-row select {
+  width: auto;
+  min-width: 110px;
+}
+
+.reminder-hint {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.dream-progress {
+  margin: 14px 0 18px;
+}
+
+.dream-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dream-head b {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+}
+
+.dream-head small {
+  color: var(--muted);
+}
+
+.dream-progress .bar.big {
+  margin: 10px 0 12px;
+  height: 10px;
+}
+
+.dream-line {
+  margin: 0;
+  color: #d9d4ec;
+}
+
+.dream-pick {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid rgba(124, 106, 247, 0.35);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.dream-pick small {
+  color: var(--muted);
+}
+
+.chips.dream-chips {
+  margin-top: 6px;
+  gap: 8px;
+}
+
+.chips.dream-chips .chip {
+  min-height: 38px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.chips.dream-chips .chip.on {
+  border-color: var(--accent);
+  color: #fff;
+  background: rgba(124, 106, 247, 0.35);
+}
+
+.dream-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.dream-row input {
+  flex: 1;
+  min-width: 0;
+}

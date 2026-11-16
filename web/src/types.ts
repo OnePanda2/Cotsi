@@ -18,7 +18,13 @@ export type Me = {
   today: string;
   usage: { used: number };
   ai?: { ready: boolean; message?: string };
+  streak?: { current: number; best: number; doneToday: boolean; week: { day: string; on: boolean }[] };
+  dream?: Dream | null;
+  reminder?: { on: boolean; hour?: number };
 };
+
+export type DreamKind = "laptop" | "bike" | "car" | "home" | "family" | "travel" | "savings" | "other";
+export type Dream = { kind: DreamKind; text?: string };
 
 export type Roadmap = {
   outcome: string;

@@ -19,6 +19,15 @@ const MeContext = createContext<MeState>({ me: null, reload: async () => {} });
 export const useMe = () => useContext(MeContext);
 
 const NEXT_KEY = "cotsi:next";
+
+/** The learner's time zone, so streak days and reminder times follow their own clock. */
+export function timeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+  } catch {
+    return "Asia/Kolkata";
+  }
+}
 /** Remember where a signed-out visitor wanted to go, so sign-in lands them there. */
 export function rememberNext(path: string) {
   setItem("session", NEXT_KEY, path);
@@ -75,7 +84,7 @@ export function App() {
 
   const reload = useCallback(async () => {
     try {
-      setMe(await api<Me>("GET", "/me"));
+      setMe(await api<Me>("GET", `/me?tz=${encodeURIComponent(timeZone())}`));
       setError("");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) await signOut();
