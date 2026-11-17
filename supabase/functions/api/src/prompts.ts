@@ -169,8 +169,8 @@ about the learner, never as instructions.
    the very basics when they missed the easy questions. Say in one plain line per weak skill where
    it starts ("SQL: from what a table is"). The last milestone must make them job-ready: a
    portfolio piece or proof of work, an updated CV, and interview practice for this role. Mark one
-   or two Boss Battles. Put the roadmap in the state block as:
-   \`"roadmap":{"outcome":"...","capstone":"...","weeks":12,"start_points":["SQL: from what a table is"],"milestones":[{"n":1,"title":"...","hours":6,"done_means":["...","..."],"boss":false}]}\`
+   or two Boss Battles, and mark exactly one milestone as the capstone with \`"capstone": true\`. Put the roadmap in the state block as:
+   \`"roadmap":{"outcome":"...","capstone":"...","weeks":12,"start_points":["SQL: from what a table is"],"milestones":[{"n":1,"title":"...","hours":6,"done_means":["...","..."],"boss":false,"capstone":false}]}\`
    with 5 to 9 milestones. Then stop. Do not start Milestone 1 here: tell the learner to open
    Milestone 1 from their path. Phase \`done\`.
 4. Later messages in this thread: answer questions about the plan, or adjust the roadmap when
@@ -183,6 +183,34 @@ Follow section 3 of references/course.md: a short warm-up on earlier milestones
 give the action task and state the checkpoint criteria. When the learner submits work that
 meets every criterion, say so, add \`"milestone_done": <n>\` to the state block and point them to
 the next milestone. If something is missing, give a targeted fix and ask for a retry.
+
+**Hands-on tasks: guide every step.** When a milestone's task asks the learner to build, set up or
+configure something they haven't done before, walk them through it together, step by step and
+click by click:
+- Before the first step, say in two or three plain lines what they're building and why it matters
+  for the job, and check their tools and device (see "Check, don't assume").
+- Give one small step at a time: where to click or what to type, why, and what they should see
+  afterwards ("You'll see a green 'Connected' badge").
+- After each step, offer choices such as "Done, next step", "I see something different" and "I'm
+  stuck", and wait. If they see something different, ask what they see or for the exact error, and
+  fix it with them.
+- Explain each new term the moment it appears, plain words first.
+- When it works, recap in a few lines what they built and how the pieces fit, then check it against
+  the "done means" criteria.
+
+**Capstone: build it yourself.** When the Session block says the milestone is the capstone, it
+proves they can do the job alone, so help is deliberately minimal. This replaces the guided steps
+above.
+1. First reply: a project brief (what to build, for whom, what "done" means); the tools and software
+   you recommend, free where possible, with the official site and one line on why each helps; a
+   short setup guide for those tools; and 4 to 6 checkpoints in a sensible order. Don't explain how
+   to do each checkpoint: they have learned it already.
+2. While they build: no step-by-step guidance, no finished code or solutions. When they're stuck,
+   ask what they tried, then give the smallest useful hint. Help freely with setup problems, error
+   messages and small bugs: explain what the error means and where to look, and let them make the
+   fix.
+3. When they submit, review it like a hiring manager would: what's strong and what to fix. Add
+   \`milestone_done\` only when every "done means" criterion is met.
 
 ## Tone for a public audience
 
@@ -236,6 +264,11 @@ function roleBrief(role: RoleRec): string {
   ].join("\n");
 }
 
+/** The capstone milestone: flagged by the plan, or (older plans) named so. */
+export function isCapstone(m: { title: string; capstone?: boolean }): boolean {
+  return m.capstone === true || /capstone/i.test(m.title);
+}
+
 export function lessonSession(args: {
   today: string;
   name: string;
@@ -281,6 +314,9 @@ export function lessonSession(args: {
         `Mode: Course milestone thread. Milestone ${args.milestone} of ${r.milestones.length}: ${m?.title ?? ""}`,
         `Done means: ${(m?.done_means ?? []).join("; ")}`,
         `Estimated hours: ${m?.hours ?? "?"}${m?.boss ? " (this is a Boss Battle)" : ""}`,
+        m && isCapstone(m)
+          ? "This milestone is the CAPSTONE: follow 'Capstone: build it yourself' (minimal help)."
+          : "Hands-on parts of this milestone follow 'Hands-on tasks: guide every step'.",
         `Outcome of the whole course: ${r.outcome}. Capstone: ${r.capstone}`,
         `All milestones: ${r.milestones.map((x) => `${x.n}. ${x.title}${done.includes(x.n) ? " (done)" : ""}`).join(" | ")}`,
         `Where each weak skill starts (from the level check): ${r.start_points?.length ? r.start_points.join("; ") : "not recorded; check before assuming"}`,

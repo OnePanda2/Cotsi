@@ -364,6 +364,10 @@ Deno.test("level-check start points and learner notes reach later lessons", () =
   const s = lessonSession({ today: "2026-11-17", name: "Hitesh", mode: "milestone", track, prefs: { style: "plain" }, milestone: 1 });
   assert(s.includes("SQL: from what a table is"), "milestones know where each weak skill starts");
   assert(s.includes("Has no SQL software yet"), "notes are handed back");
+  assert(s.includes("guide every step") && !s.includes("CAPSTONE"), "ordinary milestones are guided step by step");
+  track.state.roadmap.milestones.push({ n: 2, title: "Capstone: stock planner", hours: 20 });
+  const cap = lessonSession({ today: "2026-11-17", name: "Hitesh", mode: "milestone", track, prefs: { style: "plain" }, milestone: 2 });
+  assert(cap.includes("CAPSTONE"), "the capstone asks for minimal help");
 });
 
 Deno.test("helpers", () => {

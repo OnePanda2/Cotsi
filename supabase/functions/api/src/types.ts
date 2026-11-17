@@ -69,7 +69,7 @@ export type Roadmap = {
   weeks?: number;
   /** Where each weak skill starts, from the level check ("SQL: from what a table is"). */
   start_points?: string[];
-  milestones: { n: number; title: string; hours?: number; done_means?: string[]; boss?: boolean }[];
+  milestones: { n: number; title: string; hours?: number; done_means?: string[]; boss?: boolean; capstone?: boolean }[];
 };
 
 export type CotsiState = {

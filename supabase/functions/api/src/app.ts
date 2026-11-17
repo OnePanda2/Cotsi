@@ -492,6 +492,7 @@ function applyState(track: Track, raw: Record<string, unknown>, mode: LessonMode
         hours: Number(x.hours) || undefined,
         done_means: Array.isArray(x.done_means) ? x.done_means.map(String).slice(0, 6) : [],
         boss: x.boss === true,
+        capstone: x.capstone === true || undefined,
       })),
     };
   }
