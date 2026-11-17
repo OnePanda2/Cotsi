@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
+import { api } from "../api";
 import { getItem, setItem } from "../storage";
 
 // A calm 8-bit lane runner to keep hands busy while a lesson is read aloud. Cotsi's own art.
-// Slow and steady on purpose: no game over, no speed-up, nothing to beat in a hurry, so most of
-// the attention stays on the lesson. It pauses whenever Cotsi is waiting for an answer.
+// Slow and steady on purpose: no game over and no speed-up, so most of the attention stays on
+// the lesson. It pauses whenever Cotsi is waiting for an answer. A run is the sparks collected
+// before hitting a rock; the best run is the learner's high score and goes on the leaderboards.
 
 const W = 90; // logical pixels; scaled up with crisp edges
 const H = 120;
@@ -48,13 +52,136 @@ function readBest(): number {
   return Number(getItem("local", BEST_KEY)) || 0;
 }
 
+type BoardRow = { rank: number; name: string; score: number; me: boolean };
+export type Board = {
+  week: { starts: string; rows: BoardRow[] };
+  all: { rows: BoardRow[] };
+  me: { name: string; shown: boolean; best: number; weekBest: number; weekRank: number | null; allRank: number | null };
+};
+
+/** Saves a finished run. Never interrupts the lesson if it fails. */
+async function saveRun(score: number, ms: number): Promise<{ best: number } | null> {
+  if (score < 1) return null;
+  try {
+    return await api<{ best: number }>("POST", "/game/run", { score, ms: Math.round(ms) });
+  } catch {
+    return null;
+  }
+}
+
+function Leaderboard({ board, onClose }: { board: Board | null; onClose: () => void }) {
+  const [tab, setTab] = useState<"week" | "all">("week");
+  const rows = board ? (tab === "week" ? board.week.rows : board.all.rows) : [];
+  const rank = board ? (tab === "week" ? board.me.weekRank : board.me.allRank) : null;
+  const mine = board ? (tab === "week" ? board.me.weekBest : board.me.best) : 0;
+  return (
+    <div className="board-scrim" onClick={onClose}>
+      <div className="board" role="dialog" aria-modal="true" aria-label="Leaderboard" onClick={(e) => e.stopPropagation()}>
+        <div className="board-head">
+          <b>🏆 Leaderboard</b>
+          <button className="board-close" aria-label="Close leaderboard" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className="tabs two" role="tablist">
+          <button role="tab" aria-selected={tab === "week"} className={tab === "week" ? "on" : ""} onClick={() => setTab("week")}>
+            This week
+          </button>
+          <button role="tab" aria-selected={tab === "all"} className={tab === "all" ? "on" : ""} onClick={() => setTab("all")}>
+            All time
+          </button>
+        </div>
+        {!board ? (
+          <p className="fine">Loading…</p>
+        ) : rows.length ? (
+          <ol className="board-rows">
+            {rows.map((r) => (
+              <li key={r.rank} className={r.me ? "me" : ""}>
+                <span className="board-rank">{r.rank <= 3 ? ["🥇", "🥈", "🥉"][r.rank - 1] : r.rank}</span>
+                <span className="board-name">{r.me ? `${r.name} (you)` : r.name}</span>
+                <span className="board-score">✨ {r.score}</span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="fine">{tab === "week" ? "No runs yet this week. The first one takes the top spot." : "No runs yet."}</p>
+        )}
+        <p className="fine board-me">
+          {!board
+            ? ""
+            : !board.me.shown
+              ? "You're hidden from the leaderboard. "
+              : rank && rank > rows.length
+                ? `You're #${rank} with ✨ ${mine}. `
+                : !mine
+                  ? "Collect sparks to get on the board. "
+                  : ""}
+          {tab === "week" ? "The weekly board starts fresh every Monday." : "A score is your best run: sparks before a rock."}{" "}
+          {board && (
+            <Link to="/settings" onClick={onClose}>
+              {board.me.shown ? `Shown as ${board.me.name} · Change in Settings` : "Show me in Settings"}
+            </Link>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function LaneRunner({ running, waitingNote }: { running: boolean; waitingNote: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const game = useRef({ lane: 1, x: LANES[1], things: [] as Thing[], t: 0, nextSpawn: 0.6, sparks: 0, bonk: 0, frame: 0 });
+  const game = useRef({ lane: 1, x: LANES[1], things: [] as Thing[], t: 0, nextSpawn: 0.6, run: 0, runMs: 0, bonk: 0, frame: 0 });
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(readBest);
+  const [flash, setFlash] = useState("");
+  const [board, setBoard] = useState<Board | null>(null);
+  const [showBoard, setShowBoard] = useState(false);
+  const bestRef = useRef(best);
+  bestRef.current = best;
   const runningRef = useRef(running);
   runningRef.current = running;
+
+  const loadBoard = useCallback(async () => {
+    try {
+      const b = await api<Board>("GET", "/game/board");
+      setBoard(b);
+      if (b.me.best > bestRef.current) setBest(b.me.best);
+    } catch {
+      // the game works without the board
+    }
+  }, []);
+  useEffect(() => {
+    void loadBoard();
+  }, [loadBoard]);
+
+  const say = (text: string) => {
+    setFlash(text);
+    window.setTimeout(() => setFlash((f) => (f === text ? "" : f)), 1600);
+  };
+
+  /** A rock ends the run: save it and start the next one straight away. */
+  const endRun = useCallback(() => {
+    const g = game.current;
+    const run = g.run;
+    const ms = g.runMs * 1000;
+    g.run = 0;
+    g.runMs = 0;
+    setScore(0);
+    if (run < 1) return;
+    say(`Run over: ✨ ${run}`);
+    void saveRun(run, ms).then((r) => {
+      if (r && r.best > bestRef.current) setBest(r.best);
+    });
+  }, []);
+
+  // Leaving the lesson saves the run in progress.
+  useEffect(
+    () => () => {
+      const g = game.current;
+      if (g.run > 0) void saveRun(g.run, g.runMs * 1000);
+    },
+    [],
+  );
 
   const move = (dir: -1 | 1) => {
     if (!runningRef.current) return;
@@ -89,6 +216,7 @@ export function LaneRunner({ running, waitingNote }: { running: boolean; waiting
       if (runningRef.current) {
         g.t += dt;
         g.frame += dt;
+        g.runMs += dt;
         g.x += (LANES[g.lane] - g.x) * Math.min(1, dt * 14);
         g.bonk = Math.max(0, g.bonk - dt);
         for (const th of g.things) th.y += SPEED * dt;
@@ -104,14 +232,17 @@ export function LaneRunner({ running, waitingNote }: { running: boolean; waiting
           if (th.hit || th.lane !== g.lane || Math.abs(th.y + 3 - (PLAYER_Y + 5)) > 6) continue;
           th.hit = true;
           if (th.kind === "spark") {
-            g.sparks++;
-            setScore(g.sparks);
-            if (g.sparks > readBest()) {
-              setItem("local", BEST_KEY, String(g.sparks));
-              setBest(g.sparks);
+            g.run++;
+            setScore(g.run);
+            if (g.run > bestRef.current) {
+              if (bestRef.current > 0 && g.run === bestRef.current + 1) say("New best!");
+              setItem("local", BEST_KEY, String(g.run));
+              bestRef.current = g.run;
+              setBest(g.run);
             }
           } else {
-            g.bonk = 1; // a gentle wobble, nothing is lost
+            g.bonk = 1; // a gentle wobble; the run ends but the game keeps going
+            endRun();
           }
         }
         g.things = g.things.filter((th) => th.y < H + 8 && !(th.hit && th.kind === "spark"));
@@ -139,15 +270,25 @@ export function LaneRunner({ running, waitingNote }: { running: boolean; waiting
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [endRun]);
 
   // Tap the left or right half, or swipe.
   const touch = useRef<number | null>(null);
   return (
     <div className="runner">
       <div className="runner-head">
-        <span>✨ {score}</span>
+        <span title="This run">✨ {score}</span>
         <small>Best {best}</small>
+        <button
+          type="button"
+          className="runner-board-btn"
+          onClick={() => {
+            setShowBoard(true);
+            void loadBoard();
+          }}
+        >
+          🏆 Leaderboard
+        </button>
       </div>
       <div className="runner-stage">
         <canvas
@@ -167,6 +308,7 @@ export function LaneRunner({ running, waitingNote }: { running: boolean; waiting
             else move(e.clientX - rect.left < rect.width / 2 ? -1 : 1);
           }}
         />
+        {flash && <div className={`runner-flash${flash === "New best!" ? " best" : ""}`}>{flash}</div>}
         {!running && (
           <div className="runner-wait">
             <b>Paused</b>
@@ -174,7 +316,8 @@ export function LaneRunner({ running, waitingNote }: { running: boolean; waiting
           </div>
         )}
       </div>
-      <p className="runner-help">← → or tap a side · collect ✨, dodge rocks</p>
+      <p className="runner-help">← → or tap a side · a rock ends your run</p>
+      {showBoard && createPortal(<Leaderboard board={board} onClose={() => setShowBoard(false)} />, document.body)}
     </div>
   );
 }

@@ -10,6 +10,8 @@ export type Prefs = {
   /** Listening mode: the chosen voice's id and the reading speed. */
   voice?: string;
   rate?: number;
+  /** false hides the learner from the game leaderboards. */
+  board?: boolean;
 };
 
 export type Profile = {

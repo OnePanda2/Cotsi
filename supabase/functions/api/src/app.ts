@@ -23,6 +23,7 @@ import {
   SIGNALS,
 } from "./prompts.ts";
 import {
+  addDays,
   cleanDream,
   type Dream,
   localDay,
@@ -34,6 +35,7 @@ import {
   validTz,
 } from "./engage.ts";
 import type { Store } from "./store.ts";
+import { type BoardEntry, boardName, boardView, type GameStats, placeOnBoard, plausibleRun, recordRun, removeFromBoard, weekStart } from "./game.ts";
 import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, topicKey } from "./syllabus.ts";
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
 import type {
@@ -325,6 +327,8 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
   if (m === "GET" && path === "/me") return getMe(url, user, deps);
   if (m === "DELETE" && path === "/me") return deleteMe(user, deps);
   if (m === "PUT" && path === "/prefs") return putPrefs(req, user, deps);
+  if (m === "POST" && path === "/game/run") return postRun(req, user, deps);
+  if (m === "GET" && path === "/game/board") return getBoard(user, deps);
   if (m === "PUT" && path === "/dream") return putDream(req, user, deps);
   if (m === "PUT" && path === "/terms") return putTerms(req, user, deps);
   if (m === "GET" && path === "/push/key") return json({ key: (await vapidKeys(deps)).publicKey });
@@ -380,6 +384,7 @@ async function getMe(url: URL, user: User, deps: Deps): Promise<Response> {
 }
 
 async function deleteMe(user: User, deps: Deps): Promise<Response> {
+  await removeFromBoards(deps, user.id);
   await deps.store.deleteUser(user.id);
   await deps.store.del(GLOBAL_USER, `push:${user.id}`);
   if (deps.deleteAccount) await deps.deleteAccount(user.id).catch((e) => console.error("deleteAccount", e));
@@ -398,6 +403,7 @@ export function cleanPrefs(input: Partial<Prefs>): Prefs {
   if (voice && voice.length <= 160) prefs.voice = voice;
   const rate = Number(input.rate);
   if (Number.isFinite(rate) && rate >= 0.5 && rate <= 2) prefs.rate = Math.round(rate * 100) / 100;
+  if (input.board === false) prefs.board = false;
   return prefs;
 }
 
@@ -415,8 +421,11 @@ export function showsFromState(prefs: Prefs, raw: Record<string, unknown>): Pref
 async function putPrefs(req: Request, user: User, deps: Deps): Promise<Response> {
   const input = await body<Partial<Prefs>>(req);
   const rec = await loadUser(deps, user);
+  const wasShown = rec.prefs.board !== false;
   rec.prefs = cleanPrefs(input);
   await deps.store.put(user.id, "user", rec);
+  const shown = rec.prefs.board !== false;
+  if (wasShown !== shown) await syncBoards(deps, user, rec, shown);
   return json({ prefs: rec.prefs });
 }
 
@@ -716,6 +725,83 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
     // A day counts toward the streak once the learner answers or asks something (opening a lesson doesn't).
     if (text) await countToday(deps, user, rec.tz);
     send({ t: "done", track, sources: result.sources.slice(0, 30), cut: result.stopReason === "max_tokens" });
+  });
+}
+
+// ------------------------------------------------------------------ game: high scores and leaderboards
+
+const ALL_BOARD = "board:all";
+const weekBoard = (start: string) => `board:week:${start}`;
+
+// Boards are small lists in one row each. Two runs finishing in the same instant could race, which
+// at worst drops one board update; the learner's own best is stored separately and kept.
+async function updateBoard(deps: Deps, key: string, change: (b: BoardEntry[]) => BoardEntry[]): Promise<void> {
+  const board = (await deps.store.get<BoardEntry[]>(GLOBAL_USER, key)) ?? [];
+  await deps.store.put(GLOBAL_USER, key, change(board));
+}
+
+async function removeFromBoards(deps: Deps, uid: string): Promise<void> {
+  const start = weekStart(now(deps));
+  for (const key of [ALL_BOARD, weekBoard(start), weekBoard(addDays(start, -7))]) {
+    await updateBoard(deps, key, (b) => removeFromBoard(b, uid));
+  }
+}
+
+/** Adds (or removes) the learner's current bests when they switch the leaderboard on (or off). */
+async function syncBoards(deps: Deps, user: User, rec: UserRecord, shown: boolean): Promise<void> {
+  if (!shown) return removeFromBoards(deps, user.id);
+  const stats = await deps.store.get<GameStats>(user.id, "game");
+  const at = now(deps);
+  const name = boardName(rec.name);
+  if (stats?.best) await updateBoard(deps, ALL_BOARD, (b) => placeOnBoard(b, { uid: user.id, name, score: stats.best, at: stats.bestAt ?? at.toISOString() }));
+  if (stats?.week && stats.week.start === weekStart(at) && stats.week.best) {
+    await updateBoard(deps, weekBoard(stats.week.start), (b) => placeOnBoard(b, { uid: user.id, name, score: stats.week!.best, at: at.toISOString() }));
+  }
+}
+
+async function postRun(req: Request, user: User, deps: Deps): Promise<Response> {
+  const input = await body<{ score?: unknown; ms?: unknown }>(req);
+  if (!plausibleRun(input.score, input.ms)) throw new HttpError(400, "That run couldn't be saved.", "bad_run");
+  const at = now(deps);
+  const [rec, stats] = await Promise.all([loadUser(deps, user), deps.store.get<GameStats>(user.id, "game")]);
+  const result = recordRun(stats, input.score, at);
+  if (result.allTime || result.week) await deps.store.put(user.id, "game", result.stats);
+  if (rec.prefs.board !== false) {
+    const entry = { uid: user.id, name: boardName(rec.name), score: input.score, at: at.toISOString() };
+    if (result.allTime) await updateBoard(deps, ALL_BOARD, (b) => placeOnBoard(b, entry));
+    if (result.week) {
+      const start = result.stats.week!.start;
+      const existing = await deps.store.get<BoardEntry[]>(GLOBAL_USER, weekBoard(start));
+      // A new week's board starts: drop the one from two weeks ago, which nobody sees any more.
+      if (!existing) await deps.store.del(GLOBAL_USER, weekBoard(addDays(start, -14)));
+      await updateBoard(deps, weekBoard(start), (b) => placeOnBoard(b, entry));
+    }
+  }
+  return json({ best: result.stats.best, weekBest: result.stats.week?.best ?? 0, newBest: result.allTime });
+}
+
+async function getBoard(user: User, deps: Deps): Promise<Response> {
+  const at = now(deps);
+  const start = weekStart(at);
+  const [rec, stats, all, week] = await Promise.all([
+    loadUser(deps, user),
+    deps.store.get<GameStats>(user.id, "game"),
+    deps.store.get<BoardEntry[]>(GLOBAL_USER, ALL_BOARD),
+    deps.store.get<BoardEntry[]>(GLOBAL_USER, weekBoard(start)),
+  ]);
+  const weekView = boardView(week ?? [], user.id);
+  const allView = boardView(all ?? [], user.id);
+  return json({
+    week: { starts: start, rows: weekView.rows },
+    all: { rows: allView.rows },
+    me: {
+      name: boardName(rec.name),
+      shown: rec.prefs.board !== false,
+      best: stats?.best ?? 0,
+      weekBest: stats?.week?.start === start ? stats.week.best : 0,
+      weekRank: weekView.myRank,
+      allRank: allView.myRank,
+    },
   });
 }
 

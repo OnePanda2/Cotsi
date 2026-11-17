@@ -7,6 +7,8 @@ export type Prefs = {
   mode?: "read" | "listen";
   voice?: string;
   rate?: number;
+  /** false hides the learner from the game leaderboards. */
+  board?: boolean;
 };
 
 export type TrackSummary = {

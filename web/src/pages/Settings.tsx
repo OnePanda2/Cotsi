@@ -4,6 +4,13 @@ import { useMe } from "../App";
 import { useAuth } from "../auth";
 import { ReminderControl } from "../components/Reminders";
 import { VoicePicker } from "../components/Voice";
+
+/** Matches the API: first name and last initial, e.g. "Riya S." */
+function boardName(full: string): string {
+  const parts = full.split(/\s+/).filter(Boolean);
+  if (!parts.length) return "Learner";
+  return parts.length > 1 ? `${parts[0]} ${[...parts[parts.length - 1]][0].toUpperCase()}.` : parts[0];
+}
 import type { Prefs } from "../types";
 import { StylePicker } from "./NewLesson";
 
@@ -61,6 +68,14 @@ export function Settings() {
           <legend>Voice</legend>
           <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} />
         </fieldset>
+      ) : null}
+      {prefs.mode === "listen" ? (
+        <label className="check">
+          <input type="checkbox" checked={prefs.board !== false} onChange={(e) => setPrefs({ ...prefs, board: e.target.checked ? undefined : false })} />
+          <span>
+            Show me on the game leaderboard as <b>{boardName(me.user.name)}</b>
+          </span>
+        </label>
       ) : (
         <StylePicker prefs={prefs} onChange={setPrefs} />
       )}

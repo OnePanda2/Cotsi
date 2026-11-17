@@ -11,6 +11,10 @@ export function Privacy() {
         <li>Your lessons, answers and progress, so you can continue where you left off, and the days you learned, for your streak.</li>
         <li>If you choose one: the goal you're working towards (for example, a bike), shown on your progress bar and in reminders.</li>
         <li>
+          In listening mode, your best scores in the side game. Other learners see them on the leaderboard with your first name and
+          last initial (for example, "Riya S."). You can hide yourself in Settings, and deleting your account removes you.
+        </li>
+        <li>
           If you turn on reminders: your browser's notification address, your reminder time and your time zone, to send at most one reminder a
           day. Turning reminders off deletes the address.
         </li>

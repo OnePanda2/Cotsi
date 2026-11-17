@@ -11,6 +11,7 @@ import { makeMockClaude } from "../supabase/functions/api/src/mock.ts";
 import { MemoryStore } from "../supabase/functions/api/src/store.ts";
 import { costOf } from "../supabase/functions/api/src/budget.ts";
 import { lessonSession } from "../supabase/functions/api/src/prompts.ts";
+import { boardName, plausibleRun, weekStart } from "../supabase/functions/api/src/game.ts";
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`assertion failed: ${msg}`);
@@ -143,6 +144,55 @@ Deno.test("preferences: reading or listening, voice and speed are checked", asyn
   const noShows = { style: "characters" as const, shows: "" };
   assert(/hasn't named any shows yet/.test(lessonSession({ ...base, mode: "learn", prefs: noShows })), "full lessons ask");
   assert(/plain for this part/.test(lessonSession({ ...base, mode: "review", prefs: noShows })), "reviews don't stop to ask");
+});
+
+Deno.test("game: personal bests, weekly and all-time leaderboards, opting out", async () => {
+  const { call, setClock } = setup();
+  setClock("2026-11-18T10:00:00Z"); // a Wednesday; the week started Monday 16 Nov (India time)
+  assert(weekStart(new Date("2026-11-18T10:00:00Z")) === "2026-11-16", "week starts Monday");
+  assert(weekStart(new Date("2026-11-22T19:00:00Z")) === "2026-11-23", "late Sunday UTC is already Monday in India");
+  assert(boardName("Riya Sharma") === "Riya S." && boardName("riya") === "riya" && boardName("") === "Learner", "names");
+
+  // Runs that are impossible for the game are refused.
+  assert(!plausibleRun(50, 10_000) && plausibleRun(15, 10_000) && !plausibleRun(2.5, 10_000) && !plausibleRun(0, 1000), "plausibility");
+  const fake = await call("POST", "/game/run", { score: 900, ms: 5000 });
+  assert(fake.status === 400 && fake.json.code === "bad_run", "too fast is rejected");
+
+  let r = await call("POST", "/game/run", { score: 12, ms: 60_000 });
+  assert(r.status === 200 && r.json.best === 12 && r.json.newBest, "first run is a best");
+  r = await call("POST", "/game/run", { score: 7, ms: 60_000 });
+  assert(r.json.best === 12 && !r.json.newBest, "a lower run keeps the best");
+
+  await call("POST", "/game/run", { score: 20, ms: 60_000 }, "dev:arjun");
+  await call("PUT", "/prefs", { style: "plain", mode: "listen", board: false }, "dev:meera");
+  await call("POST", "/game/run", { score: 30, ms: 60_000 }, "dev:meera");
+
+  let b = await call("GET", "/game/board");
+  assert(b.json.all.rows.length === 2, "hidden learners aren't listed");
+  assert(b.json.all.rows[0].name === "Riya S." && b.json.all.rows[0].score === 20 && !b.json.all.rows[0].me, "names are first name and initial");
+  assert(b.json.all.rows[1].me && b.json.me.allRank === 2 && b.json.me.best === 12, "my row and rank");
+  assert(!JSON.stringify(b.json).includes("dev:") && !JSON.stringify(b.json).includes("@x.com"), "no account ids or emails");
+
+  // Next week: the weekly board starts empty; all-time keeps the scores.
+  setClock("2026-11-24T10:00:00Z");
+  b = await call("GET", "/game/board");
+  assert(b.json.week.rows.length === 0 && b.json.all.rows.length === 2 && b.json.me.weekBest === 0, "weekly board resets");
+  await call("POST", "/game/run", { score: 5, ms: 30_000 });
+  b = await call("GET", "/game/board");
+  assert(b.json.week.rows[0].score === 5 && b.json.me.weekRank === 1 && b.json.me.best === 12, "weekly best separate from all-time");
+
+  // Opting out removes me; opting back in restores my bests.
+  await call("PUT", "/prefs", { style: "plain", mode: "listen", board: false });
+  b = await call("GET", "/game/board");
+  assert(b.json.all.rows.every((x: { me: boolean }) => !x.me) && !b.json.me.shown, "hidden");
+  await call("PUT", "/prefs", { style: "plain", mode: "listen" });
+  b = await call("GET", "/game/board");
+  assert(b.json.me.allRank === 2 && b.json.me.weekRank === 1, "shown again");
+
+  // Deleting the account removes the learner from the boards.
+  await call("DELETE", "/me", undefined, "dev:arjun");
+  b = await call("GET", "/game/board");
+  assert(b.json.all.rows.length === 1, "deleted learner removed");
 });
 
 Deno.test("review thread uses saved state and reschedules", async () => {
