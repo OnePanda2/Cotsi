@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
+import { parseTopicThread, statusesOf, StepCard, SyllabusPanel, TopicHeader } from "../components/Syllabus";
 import { Thread } from "../components/Thread";
 import { DREAMS, dreamInfo } from "../dreams";
-import type { DreamKind, Roadmap, Track } from "../types";
+import { hasTopics, readinessPct } from "../syllabus";
+import type { DreamKind, Track } from "../types";
 import { reviewThread } from "./Home";
 
 const QUICK = ["Skip", "Hint", "Simpler", "Deeper"];
@@ -105,34 +107,23 @@ function DreamPicker({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** Share of the syllabus done, weighted by each milestone's hours. */
-export function readiness(roadmap: Roadmap, done: Set<number>): number {
-  const weight = (m: Roadmap["milestones"][number]) => (m.hours && m.hours > 0 ? m.hours : 1);
-  const total = roadmap.milestones.reduce((n, m) => n + weight(m), 0);
-  const got = roadmap.milestones.filter((m) => done.has(m.n)).reduce((n, m) => n + weight(m), 0);
-  return total ? Math.round((got / total) * 100) : 0;
-}
-
 /** The progress bar towards being job-ready, tied to what the job means to the learner. */
-function DreamProgress({ roadmap, done }: { roadmap: Roadmap; done: Set<number> }) {
+function DreamProgress({ pct, count, unit }: { pct: number; count: string; unit: "topic" | "milestone" }) {
   const { me } = useMe();
   const [editing, setEditing] = useState(false);
-  const pct = readiness(roadmap, done);
   const dream = me?.dream ? dreamInfo(me.dream) : null;
   const line = !dream
     ? ""
     : pct === 0
-      ? `Milestone 1 is your first step towards ${dream.phrase}.`
+      ? `${unit === "topic" ? "Your first topic" : "Milestone 1"} is your first step towards ${dream.phrase}.`
       : pct < 100
-        ? `Every milestone brings ${dream.phrase} closer.`
+        ? `Every ${unit} brings ${dream.phrase} closer.`
         : `Syllabus done. Time to go after the job behind ${dream.phrase}.`;
   return (
     <div className="dream-progress">
       <div className="dream-head">
         <b>{pct}% job-ready</b>
-        <small>
-          {done.size} of {roadmap.milestones.length} milestones
-        </small>
+        <small>{count}</small>
       </div>
       <div className="bar big" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Job-ready">
         <i style={{ width: `${Math.max(pct, 2)}%` }} />
@@ -151,13 +142,120 @@ function DreamProgress({ roadmap, done }: { roadmap: Roadmap; done: Set<number> 
   );
 }
 
-function JobPath({ track, thread, setThread }: { track: Track; thread: string; setThread: (t: string) => void }) {
+type Nav = {
+  thread: string;
+  setThread: (t: string) => void;
+  step: string | null;
+  setStep: (key: string) => void;
+};
+
+/** Job syllabi split into topics: the step to do now, with the full syllabus beside it. */
+function SyllabusPath({ track, nav }: { track: Track; nav: Nav }) {
+  const { thread, setThread, step, setStep } = nav;
+  const [open, setOpen] = useState(false);
+  const roadmap = track.state.roadmap!;
+  const statuses = statusesOf(track);
+  const topic = parseTopicThread(thread);
+  const build = thread.match(/^m(\d+)$/);
+  const pick = (key: string) => {
+    setOpen(false);
+    setStep(key);
+  };
+  const shown = statuses.find((s) => s.key === step) ?? statuses.find((s) => s.open);
+  const current = topic ? `${topic.n}.${topic.k}` : build ? `${build[1]}.build` : (shown?.key ?? "");
+  const done = statuses.filter((s) => s.done).length;
+  return (
+    <>
+      <SyllabusPanel track={track} open={open} current={current} onPick={pick} onClose={() => setOpen(false)} />
+      <div className="syl-bar">
+        {thread !== "plan" || step ? (
+          <button className="link back" onClick={() => setThread("plan")}>
+            ← Your next step
+          </button>
+        ) : (
+          <span />
+        )}
+        <button className="btn ghost small syl-open" onClick={() => setOpen(true)}>
+          📋 Full syllabus
+        </button>
+      </div>
+      {thread === "plan" && (
+        <section className="roadmap">
+          <p className="fine">
+            🎯 {roadmap.outcome} · 🏆 {roadmap.capstone}
+          </p>
+          <DreamProgress pct={readinessPct(roadmap.milestones, track.job ?? {})} count={`${done} of ${statuses.length} steps`} unit="topic" />
+          {shown ? (
+            <StepCard track={track} step={shown} go={setThread} />
+          ) : (
+            <section className="card step-card">
+              <h2>🎉 Syllabus done</h2>
+              <p className="fine">Every topic and build is finished. Head to "Find jobs" to look for openings.</p>
+            </section>
+          )}
+          <details className="plan-chat">
+            <summary>Ask about or adjust your plan</summary>
+            <Thread trackId={track.id} thread="plan" placeholder="Ask a question or request a change…" />
+          </details>
+        </section>
+      )}
+      {topic && <TopicHeader track={track} n={topic.n} k={topic.k} v={topic.v} onNext={pick} go={setThread} />}
+    </>
+  );
+}
+
+/** Older job syllabi without topics: the plain list of milestones. */
+function MilestoneList({ track, setThread }: { track: Track; setThread: (t: string) => void }) {
+  const roadmap = track.state.roadmap!;
+  const done = new Set(track.job?.milestonesDone ?? []);
+  const next = roadmap.milestones.find((m) => !done.has(m.n));
+  return (
+    <section className="roadmap">
+      <p className="fine">
+        🎯 {roadmap.outcome} · 🏆 {roadmap.capstone}
+      </p>
+      <DreamProgress
+        pct={readinessPct(roadmap.milestones, track.job ?? {})}
+        count={`${done.size} of ${roadmap.milestones.length} milestones`}
+        unit="milestone"
+      />
+      <ol className="milestones">
+        {roadmap.milestones.map((m) => (
+          <li key={m.n}>
+            <button className={`card row ${done.has(m.n) ? "done" : next?.n === m.n ? "next" : ""}`} onClick={() => setThread(`m${m.n}`)}>
+              <span className="num">{done.has(m.n) ? "✓" : m.n}</span>
+              <span className="grow">
+                <b>
+                  {m.boss && "⚔️ "}
+                  {m.title}
+                </b>
+                <small>
+                  {m.hours ? `About ${m.hours} hours` : ""}
+                  {next?.n === m.n ? " · up next" : ""}
+                </small>
+              </span>
+              <span className="arrow" aria-hidden="true">
+                →
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <details className="plan-chat">
+        <summary>Ask about or adjust your plan</summary>
+        <Thread trackId={track.id} thread="plan" placeholder="Ask a question or request a change…" />
+      </details>
+    </section>
+  );
+}
+
+function JobPath({ track, nav }: { track: Track; nav: Nav }) {
+  const { thread, setThread } = nav;
   const role = track.job!.role;
   const roadmap = track.state.roadmap;
-  const done = new Set(track.job?.milestonesDone ?? []);
   const tab = thread === "hunt" ? "hunt" : thread === "edge" ? "edge" : "learn";
-  const pct = roadmap ? readiness(roadmap, done) : 0;
-  const next = roadmap?.milestones.find((m) => !done.has(m.n));
+  const pct = roadmap ? readinessPct(roadmap.milestones, track.job ?? {}) : 0;
+  const syllabus = Boolean(roadmap && hasTopics(roadmap.milestones));
   return (
     <>
       <div className="tabs" role="tablist">
@@ -172,42 +270,9 @@ function JobPath({ track, thread, setThread }: { track: Track; thread: string; s
         ))}
       </div>
 
-      {tab === "learn" && roadmap && thread === "plan" && (
-        <section className="roadmap">
-          <p className="fine">
-            🎯 {roadmap.outcome} · 🏆 {roadmap.capstone}
-          </p>
-          <DreamProgress roadmap={roadmap} done={done} />
-          <ol className="milestones">
-            {roadmap.milestones.map((m) => (
-              <li key={m.n}>
-                <button className={`card row ${done.has(m.n) ? "done" : next?.n === m.n ? "next" : ""}`} onClick={() => setThread(`m${m.n}`)}>
-                  <span className="num">{done.has(m.n) ? "✓" : m.n}</span>
-                  <span className="grow">
-                    <b>
-                      {m.boss && "⚔️ "}
-                      {m.title}
-                    </b>
-                    <small>
-                      {m.hours ? `About ${m.hours} hours` : ""}
-                      {next?.n === m.n ? " · up next" : ""}
-                    </small>
-                  </span>
-                  <span className="arrow" aria-hidden="true">
-                    →
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-          <details className="plan-chat">
-            <summary>Ask about or adjust your plan</summary>
-            <Thread trackId={track.id} thread="plan" placeholder="Ask a question or request a change…" />
-          </details>
-        </section>
-      )}
-
-      {tab === "learn" && /^m\d+$/.test(thread) && (
+      {tab === "learn" && syllabus && <SyllabusPath track={track} nav={nav} />}
+      {tab === "learn" && !syllabus && roadmap && thread === "plan" && <MilestoneList track={track} setThread={setThread} />}
+      {tab === "learn" && !syllabus && /^m\d+$/.test(thread) && (
         <button className="link back" onClick={() => setThread("plan")}>
           ← All milestones
         </button>
@@ -249,7 +314,15 @@ export function TrackPage() {
 
   const isJob = track?.kind === "job";
   const thread = params.get("thread") ?? (isJob ? "plan" : "main");
-  const setThread = (t: string) => setParams(t === "plan" || t === "main" ? {} : { thread: t });
+  const step = params.get("step");
+  const setThread = (t: string) => {
+    setParams(t === "plan" || t === "main" ? {} : { thread: t });
+    window.scrollTo({ top: 0 });
+  };
+  const setStep = (key: string) => {
+    setParams({ step: key });
+    window.scrollTo({ top: 0 });
+  };
 
   const remove = async () => {
     if (!confirm(`Delete "${track?.title}" and its progress?`)) return;
@@ -279,7 +352,7 @@ export function TrackPage() {
           <h1>{track.title}</h1>
           {isJob && <p className="lede small">{track.job!.role.one_liner}</p>}
           {!isJob && <MapBar track={track} />}
-          {isJob && <JobPath track={track} thread={thread} setThread={setThread} />}
+          {isJob && <JobPath track={track} nav={{ thread, setThread, step, setStep }} />}
           {thread.startsWith("review-") && <p className="badge">🔁 Review</p>}
           {due && (
             <Link className="notice calm" to={`/t/${id}?thread=${reviewThread(me!.today)}`}>
@@ -321,7 +394,7 @@ export function TrackPage() {
             thread={thread}
             autoStart
             onTrack={onTrack}
-            quickReplies={thread === "plan" ? undefined : QUICK}
+            quickReplies={thread === "plan" || /^m\d+t\d+[rq]$/.test(thread) ? undefined : QUICK}
           />
         ))}
     </div>

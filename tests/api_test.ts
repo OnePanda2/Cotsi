@@ -144,9 +144,47 @@ Deno.test("job path: profile, scans, recommend, choose, plan, milestone, researc
   const roadmap = await call("POST", `/tracks/${id}/chat`, { thread: "plan", message: "The number of open tickets; Line chart" });
   assert(roadmap.json.track.state.roadmap.milestones.length === 6, "roadmap saved");
 
+  const r = roadmap.json.track.state.roadmap;
+  assert(r.milestones[0].topics.length === 4 && r.milestones[4].capstone === true, "topics and capstone saved");
+  assert(r.start_points.length === 2, "start points saved");
+
+  // Strict order: later topics and the hands-on build are locked.
+  const locked = await call("POST", `/tracks/${id}/chat`, { thread: "m1t2l" });
+  assert(locked.status === 403 && locked.json.code === "locked", "topic 2 waits for topic 1");
+  const lockedBuild = await call("POST", `/tracks/${id}/chat`, { thread: "m1" });
+  assert(lockedBuild.status === 403 && lockedBuild.json.code === "locked", "the build waits for the topics");
+
+  // Learn: done once the checks are answered.
+  await call("POST", `/tracks/${id}/chat`, { thread: "m1t1l" });
+  const learned = await call("POST", `/tracks/${id}/chat`, { thread: "m1t1l", message: "One ticket" });
+  assert(learned.json.track.job.topics["1.1"].via === "learn", "topic 1 learned");
+
+  // Revise: a run-through and a test; 5 of 5 passes.
+  await call("POST", `/tracks/${id}/chat`, { thread: "m1t2r" });
+  const revised = await call("POST", `/tracks/${id}/chat`, { thread: "m1t2r", message: "1... 2... 3... 4... 5..." });
+  assert(revised.json.track.job.topics["1.2"].via === "revise", "topic 2 passed by revising");
+
+  // I already know this: 3 of 5 fails, so only Learn is allowed.
+  await call("POST", `/tracks/${id}/chat`, { thread: "m1t3q" });
+  const failed = await call("POST", `/tracks/${id}/chat`, { thread: "m1t3q", message: "1... 2... 3... 4... 5..." });
+  assert(!failed.json.track.job.topics["1.3"] && failed.json.track.job.mustLearn.includes("1.3"), "a failed test means Learn");
+  const retest = await call("POST", `/tracks/${id}/chat`, { thread: "m1t3r" });
+  assert(retest.status === 403 && retest.json.code === "locked", "no retest before learning");
+  await call("POST", `/tracks/${id}/chat`, { thread: "m1t3l" });
+  const relearned = await call("POST", `/tracks/${id}/chat`, { thread: "m1t3l", message: "It matches rows" });
+  assert(relearned.json.track.job.topics["1.3"].via === "learn" && !relearned.json.track.job.mustLearn.includes("1.3"), "learned after failing");
+  assert(relearned.json.track.job.started["1.3"] === "know", "how they started is remembered");
+
+  const passMe = await call("POST", `/tracks/${id}/chat`, { thread: "m1t4q" });
+  assert(passMe.status === 200, "topic 4 is open");
+  await call("POST", `/tracks/${id}/chat`, { thread: "m1t4l" });
+  await call("POST", `/tracks/${id}/chat`, { thread: "m1t4l", message: "Counts per group" });
+
   await call("POST", `/tracks/${id}/chat`, { thread: "m1" });
   const done = await call("POST", `/tracks/${id}/chat`, { thread: "m1", message: "Here is my query and answer" });
   assert(done.json.track.job.milestonesDone.includes(1), "milestone marked done");
+  const next = await call("POST", `/tracks/${id}/chat`, { thread: "m2t1l" });
+  assert(next.status === 200, "milestone 2's first topic opens after milestone 1");
   const bad = await call("POST", `/tracks/${id}/chat`, { thread: "m9" });
   assert(bad.status === 404, "unknown milestone");
 
@@ -155,7 +193,8 @@ Deno.test("job path: profile, scans, recommend, choose, plan, milestone, researc
   const edge = await call("POST", `/tracks/${id}/chat`, { thread: "edge" });
   assert(edge.json.t === "done", "unfair advantage runs");
   const me = await call("GET", "/me");
-  assert(me.json.tracks[0].total === 6 && me.json.tracks[0].done === 1, "job progress on /me");
+  const t0 = me.json.tracks[0];
+  assert(t0.unit === "steps" && t0.total === 22 && t0.done === 5, `job progress on /me (${t0.done} of ${t0.total})`);
 });
 
 Deno.test("budget caps: per-user and whole-site, reset next day", async () => {

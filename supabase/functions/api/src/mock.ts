@@ -262,16 +262,93 @@ const PLAN_FIRST = `I've read your CV, so I'll skip what you already know: Excel
 {"phase":"questions"}
 \`\`\``;
 
-const PLAN_ROADMAP = `Both right. You know more SQL than your CV says, so Milestone 1 starts at joins, not basics.
+const PLAN_ROADMAP = `Thanks. Your answers show where to start: **SQL** from the very basics (what a table is), and **dashboards** from choosing the right chart.
 
 🎯 **Outcome:** in 12 weeks you can answer real support questions with data, show the answer in a dashboard, and explain it to a manager in two minutes.
 
 🏆 **Capstone:** a public portfolio project: a support dashboard and a one-page findings memo built from a real (anonymised) ticket dataset.
 
-🧱 **Your path** is below: six milestones at about 6 hours a week. ⚔️ marks a boss milestone where you build something real. Open **Milestone 1** to begin.
+🧱 **Your syllabus** is in the panel: six milestones, each split into small topics from the basics up. For each topic you choose **Learn**, **Revise** or **I already know this**. The next topic opens when you finish one.
 
 \`\`\`cotsi-state
-{"phase":"done","roadmap":{"outcome":"Answer support questions with data and present the result","capstone":"A support dashboard and findings memo from a real ticket dataset","weeks":12,"milestones":[{"n":1,"title":"SQL joins and grouping on ticket data","hours":10,"done_means":["Query joins tickets to agents","Answer stated in one sentence"],"boss":false},{"n":2,"title":"Metrics that matter: FRT, CSAT, backlog","hours":8,"done_means":["Five metrics defined","Each computed in SQL"],"boss":false},{"n":3,"title":"Build a dashboard a manager can read","hours":14,"done_means":["Three charts","One insight per chart"],"boss":true},{"n":4,"title":"Measuring an AI support agent","hours":10,"done_means":["Test set of 30 questions","Pass rate and failure types reported"],"boss":false},{"n":5,"title":"Capstone: findings memo from real data","hours":16,"done_means":["Dashboard live","One-page memo with a recommendation"],"boss":true},{"n":6,"title":"Job-ready: portfolio, CV and interview practice","hours":10,"done_means":["Portfolio link","CV rewritten for the role","Two mock interviews done"],"boss":false}]}}
+{"phase":"done","roadmap":{"outcome":"Answer support questions with data and present the result","capstone":"A support dashboard and findings memo from a real ticket dataset","weeks":12,"start_points":["SQL: from what a table and a row are","Dashboards: from choosing the right chart"],"milestones":[{"n":1,"title":"SQL joins and grouping on ticket data","hours":10,"done_means":["Query joins tickets to agents","Answer stated in one sentence"],"boss":false,"topics":["What a table and a row are","Picking rows with WHERE","Joining two tables","Counting with GROUP BY"]},{"n":2,"title":"Metrics that matter: FRT, CSAT, backlog","hours":8,"done_means":["Five metrics defined","Each computed in SQL"],"boss":false,"topics":["What makes a good metric","First response time and CSAT","Backlog and trends over time"]},{"n":3,"title":"Build a dashboard a manager can read","hours":14,"done_means":["Three charts","One insight per chart"],"boss":true,"topics":["Choosing the right chart","One insight per chart","Building it in Looker Studio"]},{"n":4,"title":"Measuring an AI support agent","hours":10,"done_means":["Test set of 30 questions","Pass rate and failure types reported"],"boss":false,"topics":["What a test set is","Scoring answers fairly","Reading failure types"]},{"n":5,"title":"Capstone: findings memo from real data","hours":16,"done_means":["Dashboard live","One-page memo with a recommendation"],"boss":true,"capstone":true,"topics":[]},{"n":6,"title":"Job-ready: portfolio, CV and interview practice","hours":10,"done_means":["Portfolio link","CV rewritten for the role","Two mock interviews done"],"boss":false,"topics":["Turning projects into a portfolio","Rewriting your CV for the role","Answering data interview questions"]}]}}
+\`\`\``;
+
+
+const TOPIC_LEARN_FIRST = `By the end, you'll be able to say what a table and a row are, and find one in your own ticket data.
+
+### What a table and a row are
+
+A **table** is a grid, like one sheet in Excel. Your helpdesk keeps one for tickets.
+
+Each **row** is one thing: one ticket. Each **column** is one fact about it: who opened it, when, and its status.
+
+🧠 **Sticky line:** one row, one ticket. One column, one fact.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"In a tickets table, what is one row?","options":["One ticket","One customer's whole history","One column of dates","Not sure"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"phase":"teaching"}
+\`\`\``;
+
+const TOPIC_LEARN_DONE = `✅ Right: one row is one ticket. You've got this topic.
+
+**Next:** "Picking rows with WHERE" is now open in your syllabus.
+
+\`\`\`cotsi-state
+{"topic_done":true}
+\`\`\``;
+
+const TEST_QUESTIONS = `1. In your own words, what does WHERE do in a query?
+2. You want only tickets opened in March. What would your WHERE condition check?
+3. Spot the mistake: \`SELECT * FROM tickets WHERE status = open\`
+4. Two conditions, joined by AND: what happens to a ticket that meets only one?
+5. Your manager asks for "urgent tickets still open". Which two columns would you check?
+
+Answer all five in one message.`;
+
+const TOPIC_REVISE_FIRST = `Quick run-through first, then 5 questions.
+
+**WHERE** keeps only the rows you ask for. \`WHERE status = 'open'\` keeps open tickets and drops the rest. Text goes in quotes. **AND** needs both conditions true; **OR** needs either.
+
+**The test** (no hints; you can switch to Learn any time):
+
+${TEST_QUESTIONS}
+
+\`\`\`cotsi-state
+{"phase":"teaching"}
+\`\`\``;
+
+const TOPIC_REVISE_RESULT = `1 ✅ 2 ✅ 3 ✅ (the text needs quotes) 4 ✅ 5 ✅
+
+**5 of 5. Passed.** "Joining two tables" is now open.
+
+\`\`\`cotsi-state
+{"test_result":{"score":5,"of":5}}
+\`\`\``;
+
+const TOPIC_KNOW_FIRST = `Here's the test: 5 questions, and 4 right passes. No hints, but you can switch to Learn any time.
+
+1. In your own words, what does a JOIN do?
+2. Tickets have an agent_id. Agents have an id and a name. What do you join on?
+3. Spot the mistake: \`SELECT * FROM tickets JOIN agents\`
+4. What happens to a ticket whose agent_id isn't in the agents table, with an inner join?
+5. You want each ticket with its agent's name. Which table do you start from?
+
+Answer all five in one message.
+
+\`\`\`cotsi-state
+{"phase":"teaching"}
+\`\`\``;
+
+const TOPIC_KNOW_RESULT = `1 ✅ 2 ✅ 3 ❌ (it needs ON tickets.agent_id = agents.id) 4 ❌ (it's dropped) 5 ✅
+
+**3 of 5.** Close, but not yet a pass. Let's learn this topic properly: tap **Learn** and it takes about 15 minutes.
+
+\`\`\`cotsi-state
+{"test_result":{"score":3,"of":5}}
 \`\`\``;
 
 function milestoneText(n: number, done: boolean): string {
@@ -376,6 +453,9 @@ function pick(opts: RunOpts): { text: string; sources?: { url: string; title: st
   const [, mode, turn] = key.split(":");
   const n = Number(turn);
   if (mode === "plan") return { text: n <= 1 ? PLAN_FIRST : PLAN_ROADMAP };
+  if (mode === "topic-learn") return { text: n <= 1 ? TOPIC_LEARN_FIRST : TOPIC_LEARN_DONE };
+  if (mode === "topic-revise") return { text: n <= 1 ? TOPIC_REVISE_FIRST : TOPIC_REVISE_RESULT };
+  if (mode === "topic-know") return { text: n <= 1 ? TOPIC_KNOW_FIRST : TOPIC_KNOW_RESULT };
   if (mode === "milestone") {
     const m = Number(firstUserText(opts).match(/milestone (\d+)/i)?.[1] ?? 1);
     return { text: milestoneText(m, n > 1) };

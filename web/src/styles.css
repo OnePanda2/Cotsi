@@ -2084,3 +2084,289 @@ fieldset:disabled .option {
 .signin-note a {
   color: inherit;
 }
+
+/* ---------- syllabus (job paths split into topics) ---------- */
+
+.syl-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.syllabus {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(340px, 90vw);
+  padding: 16px 14px calc(24px + env(safe-area-inset-bottom));
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  overflow-y: auto;
+  transform: translateX(102%);
+  transition: transform 0.22s ease;
+}
+
+.syllabus.open {
+  transform: none;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+}
+
+.syl-scrim {
+  display: none;
+}
+
+.syl-scrim.on {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.syl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.syl-head span {
+  display: grid;
+  gap: 2px;
+}
+
+.syl-head b {
+  font: 400 1.3rem / 1.2 var(--serif);
+}
+
+.syl-head small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.syl-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.syl-milestone h3 {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 0 4px;
+  font: 600 0.88rem / 1.35 var(--sans);
+}
+
+.syl-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -1px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: 1px solid rgba(124, 106, 247, 0.4);
+  color: #c9c0ff;
+  font-size: 0.7rem;
+}
+
+.syl-milestone ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.syl-milestone li button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: #d9d4ec;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.syl-milestone li button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.syl-icon {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.syl-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.syl-milestone li.done button {
+  color: var(--muted);
+}
+
+.syl-milestone li.done .syl-icon {
+  color: var(--good);
+}
+
+.syl-milestone li.open button {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.syl-milestone li.open .syl-icon {
+  color: #b8adff;
+}
+
+.syl-milestone li.again .syl-icon {
+  color: var(--warn);
+}
+
+.syl-milestone li.locked button {
+  color: rgba(167, 162, 186, 0.55);
+  cursor: not-allowed;
+}
+
+.syl-milestone li.locked .syl-icon {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.syl-milestone li.on button {
+  border-color: rgba(124, 106, 247, 0.6);
+  background: var(--accent-soft);
+}
+
+.step-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  border-color: rgba(124, 106, 247, 0.45);
+}
+
+.step-card .kicker,
+.topic-head .kicker {
+  margin: 0;
+}
+
+.step-card h2,
+.topic-head h2 {
+  font: 400 1.6rem / 1.15 var(--serif);
+  overflow-wrap: anywhere;
+}
+
+.step-card .fine,
+.step-card .notice {
+  margin: 0;
+}
+
+.step-card > .btn {
+  align-self: flex-start;
+}
+
+.done-means {
+  margin: 0;
+  padding-left: 20px;
+  color: #d9d4ec;
+  font-size: 0.92rem;
+}
+
+.ways {
+  display: grid;
+  gap: 8px;
+}
+
+.way {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.way:hover {
+  border-color: rgba(124, 106, 247, 0.7);
+  background: var(--accent-soft);
+}
+
+.way b {
+  font-weight: 600;
+}
+
+.way small {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (min-width: 560px) {
+  .ways {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.topic-head {
+  display: grid;
+  gap: 6px;
+}
+
+.topic-head .link {
+  justify-self: start;
+  padding: 0;
+}
+
+.notice.next-step {
+  width: 100%;
+  margin: 4px 0 0;
+  text-align: left;
+  cursor: pointer;
+  border-color: rgba(74, 222, 128, 0.45);
+  background: rgba(74, 222, 128, 0.08);
+  color: #c8f5d8;
+}
+
+/* Wide screens: the syllabus stays open on the right. */
+@media (min-width: 1400px) {
+  .has-syllabus .app {
+    padding-right: 320px;
+  }
+  .syllabus {
+    width: 320px;
+    transform: none;
+    box-shadow: none;
+  }
+  .syl-close,
+  .syl-open,
+  .syl-scrim.on {
+    display: none;
+  }
+}

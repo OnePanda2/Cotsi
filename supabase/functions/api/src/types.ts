@@ -69,7 +69,16 @@ export type Roadmap = {
   weeks?: number;
   /** Where each weak skill starts, from the level check ("SQL: from what a table is"). */
   start_points?: string[];
-  milestones: { n: number; title: string; hours?: number; done_means?: string[]; boss?: boolean; capstone?: boolean }[];
+  milestones: {
+    n: number;
+    title: string;
+    hours?: number;
+    done_means?: string[];
+    boss?: boolean;
+    capstone?: boolean;
+    /** The milestone's topics, from the most basic to the most advanced. */
+    topics?: string[];
+  }[];
 };
 
 export type CotsiState = {
@@ -97,6 +106,12 @@ export type Track = {
     prefs: JobPrefs;
     role: RoleRec;
     milestonesDone?: number[];
+    /** Topics done, keyed "milestone.topic", and how: learned, revised and tested, or tested. */
+    topics?: Record<string, { via: "learn" | "revise" | "know"; at: string }>;
+    /** Topics whose test was failed: only Learn is allowed until they're learned. */
+    mustLearn?: string[];
+    /** The way the learner chose to start each topic. */
+    started?: Record<string, "learn" | "revise" | "know">;
   };
 };
 

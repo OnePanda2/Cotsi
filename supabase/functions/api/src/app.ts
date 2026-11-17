@@ -33,6 +33,7 @@ import {
   validTz,
 } from "./engage.ts";
 import type { Store } from "./store.ts";
+import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, topicKey } from "./syllabus.ts";
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
 import type {
   CotsiState,
@@ -89,7 +90,8 @@ const DEFAULT_PREFS: Prefs = { style: "characters", shows: "", visuals: true };
 const MAX_HISTORY = 40;
 const MAX_MESSAGE_CHARS = 6000;
 const MAX_PDF_BASE64 = 6_000_000; // about 4.4 MB of PDF
-const THREAD_ID = /^(main|plan|hunt|edge|m[1-9]\d?|review-\d{8})$/;
+// Topic threads: m<milestone>t<topic> plus l (learn), r (revise) or q (test only).
+const THREAD_ID = /^(main|plan|hunt|edge|m[1-9]\d?|m[1-9]\d?t[1-9]\d?[lrq]|review-\d{8})$/;
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -243,14 +245,19 @@ async function loadTrack(deps: Deps, user: User, id: string): Promise<Track> {
 
 function trackSummary(t: Track) {
   const trunk = t.state.map?.trunk?.length ?? 0;
-  const milestones = t.state.roadmap?.milestones.length ?? 0;
+  const milestones = t.state.roadmap?.milestones ?? [];
+  const topical = t.kind === "job" && hasTopics(milestones);
+  const statuses = topical ? stepStatuses(milestones, t.job ?? {}) : [];
   return {
     id: t.id,
     kind: t.kind,
     title: t.title,
     phase: t.state.phase ?? null,
-    total: t.kind === "job" ? milestones : trunk,
-    done: t.kind === "job" ? t.job?.milestonesDone?.length ?? 0 : t.state.progress?.done?.length ?? 0,
+    unit: t.kind !== "job" ? "ideas" : topical ? "steps" : "milestones",
+    total: t.kind === "job" ? (topical ? statuses.length : milestones.length) : trunk,
+    done: t.kind === "job"
+      ? topical ? statuses.filter((x) => x.done).length : t.job?.milestonesDone?.length ?? 0
+      : t.state.progress?.done?.length ?? 0,
     nextReviewAt: t.state.nextReviewAt ?? null,
     updatedAt: t.updatedAt,
   };
@@ -424,9 +431,13 @@ function defaultThread(track: Track): string {
 
 // ------------------------------------------------------------------ chat
 
+type Variant = "learn" | "revise" | "know";
+
 type ThreadPlan =
-  | { type: "lesson"; mode: LessonMode; milestone?: number }
+  | { type: "lesson"; mode: LessonMode; milestone?: number; topic?: number; variant?: Variant }
   | { type: "research"; which: "hunt" | "edge" };
+
+const VARIANT: Record<string, Variant> = { l: "learn", r: "revise", q: "know" };
 
 function planThread(track: Track, thread: string): ThreadPlan {
   if (thread.startsWith("review-")) return { type: "lesson", mode: "review" };
@@ -436,10 +447,28 @@ function planThread(track: Track, thread: string): ThreadPlan {
   }
   if (thread === "plan") return { type: "lesson", mode: "plan" };
   if (thread === "hunt" || thread === "edge") return { type: "research", which: thread };
-  const n = Number(thread.slice(1));
   const roadmap = track.state.roadmap;
   if (!roadmap) throw new HttpError(409, "Build your syllabus first.");
+  const progress: SyllabusProgress = track.job ?? {};
+  const topicThread = thread.match(/^m(\d+)t(\d+)([lrq])$/);
+  if (topicThread) {
+    const [n, k, variant] = [Number(topicThread[1]), Number(topicThread[2]), VARIANT[topicThread[3]]];
+    if (!findTopic(roadmap.milestones, n, k)) throw new HttpError(404, "That topic doesn't exist.");
+    const key = topicKey(n, k);
+    if (!isUnlocked(roadmap.milestones, progress, key)) {
+      throw new HttpError(403, "This topic opens once you've finished the ones before it.", "locked");
+    }
+    const done = Boolean(progress.topics?.[key]);
+    if (!done && variant !== "learn" && (progress.mustLearn ?? []).includes(key)) {
+      throw new HttpError(403, "You didn't pass the test on this topic yet, so learn it first. Then the next topic opens.", "locked");
+    }
+    return { type: "lesson", mode: "topic", milestone: n, topic: k, variant };
+  }
+  const n = Number(thread.slice(1));
   if (!roadmap.milestones.some((x) => x.n === n)) throw new HttpError(404, "That milestone doesn't exist.");
+  if (hasTopics(roadmap.milestones) && !isUnlocked(roadmap.milestones, progress, `${n}.build`)) {
+    throw new HttpError(403, "This hands-on part opens once you've finished the milestone's topics.", "locked");
+  }
   return { type: "lesson", mode: "milestone", milestone: n };
 }
 
@@ -454,8 +483,19 @@ export function extractState(text: string): Record<string, unknown> | null {
   }
 }
 
-function applyState(track: Track, raw: Record<string, unknown>, mode: LessonMode, today: Date): void {
+function applyState(
+  track: Track,
+  raw: Record<string, unknown>,
+  mode: LessonMode,
+  today: Date,
+  topic?: { n: number; k: number; variant: Variant },
+): void {
   const s: CotsiState = track.state;
+  if (mode === "topic") {
+    applyTopicResult(track, raw, today, topic);
+    if (Array.isArray(raw.notes)) s.notes = cleanNotes(raw.notes);
+    return;
+  }
   const phases = ["questions", "teaching", "unlock", "wrapup", "done"];
   // The course plan and reviews report their own phase; it must not overwrite the lesson's.
   if (mode !== "review" && mode !== "plan" && mode !== "milestone" && phases.includes(raw.phase as string)) {
@@ -493,18 +533,50 @@ function applyState(track: Track, raw: Record<string, unknown>, mode: LessonMode
         done_means: Array.isArray(x.done_means) ? x.done_means.map(String).slice(0, 6) : [],
         boss: x.boss === true,
         capstone: x.capstone === true || undefined,
+        topics: Array.isArray(x.topics)
+          ? x.topics.filter((t: unknown) => typeof t === "string" && t.trim()).map((t: string) => t.trim().slice(0, 90)).slice(0, 8)
+          : undefined,
       })),
     };
   }
-  if (Array.isArray(raw.notes)) {
-    s.notes = (raw.notes as unknown[])
-      .filter((x): x is string => typeof x === "string" && x.trim() !== "")
-      .map((x) => x.trim().slice(0, 160))
-      .slice(-8);
-  }
+  if (Array.isArray(raw.notes)) s.notes = cleanNotes(raw.notes);
   const doneN = Number(raw.milestone_done);
   if (mode === "milestone" && track.job && Number.isInteger(doneN) && s.roadmap?.milestones.some((x) => x.n === doneN)) {
     track.job.milestonesDone = [...new Set([...(track.job.milestonesDone ?? []), doneN])].sort((a, b) => a - b);
+  }
+}
+
+function cleanNotes(raw: unknown[]): string[] {
+  return raw
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .map((x) => x.trim().slice(0, 160))
+    .slice(-8);
+}
+
+/** Pass mark for "Revise" and "I already know this": 4 of 5 (80%). */
+const PASS_SHARE = 0.8;
+
+/** A topic is done by learning it, or by passing its test; a failed test means Learn comes next. */
+function applyTopicResult(track: Track, raw: Record<string, unknown>, at: Date, topic?: { n: number; k: number; variant: Variant }) {
+  if (!topic || !track.job) return;
+  const key = topicKey(topic.n, topic.k);
+  const job = track.job;
+  if (job.topics?.[key]) return; // already done; nothing to change
+  const markDone = (via: Variant) => {
+    job.topics = { ...(job.topics ?? {}), [key]: { via, at: at.toISOString() } };
+    job.mustLearn = (job.mustLearn ?? []).filter((x) => x !== key);
+  };
+  if (topic.variant === "learn" && raw.topic_done === true) {
+    markDone("learn");
+    return;
+  }
+  // deno-lint-ignore no-explicit-any
+  const result = raw.test_result as any;
+  const score = Number(result?.score);
+  const of = Number(result?.of);
+  if (topic.variant !== "learn" && Number.isFinite(score) && Number.isFinite(of) && of >= 3) {
+    if (score / of >= PASS_SHARE) markDone(topic.variant);
+    else job.mustLearn = [...new Set([...(job.mustLearn ?? []), key])];
   }
 }
 
@@ -526,13 +598,18 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
 
   if (!history.length) {
     const first = plan.type === "lesson"
-      ? kickoff(plan.mode, track, plan.milestone)
+      ? kickoff(plan.mode, track, plan.milestone, plan.topic, plan.variant)
       : researchUser({ today, track, extra: text || undefined });
     history = [{ role: "user", text: first, at: at.toISOString(), hidden: true }];
     if (text && plan.type === "lesson") history.push({ role: "user", text, at: at.toISOString() });
   } else {
     if (!text) throw new HttpError(400, "Type a message first.");
     history.push({ role: "user", text, at: at.toISOString() });
+  }
+
+  if (plan.type === "lesson" && plan.mode === "topic" && track.job && plan.variant) {
+    const key = topicKey(plan.milestone!, plan.topic!);
+    track.job.started = { ...(track.job.started ?? {}), [key]: track.job.started?.[key] ?? plan.variant };
   }
 
   const truncated = history.length > MAX_HISTORY;
@@ -552,6 +629,8 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
           track,
           prefs: rec.prefs,
           milestone: plan.milestone,
+          topic: plan.topic,
+          variant: plan.variant,
           truncated,
         });
         result = await deps.claude({
@@ -562,7 +641,7 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
           effort: plan.mode === "plan" || history.length <= 1 ? "medium" : "low",
           onText: (d) => send({ t: "text", d }),
           signal: timeout.signal,
-          mock: `lesson:${plan.mode}:${history.filter((x) => x.role === "user").length}`,
+          mock: `lesson:${plan.mode === "topic" ? `topic-${plan.variant}` : plan.mode}:${history.filter((x) => x.role === "user").length}`,
         });
       } else {
         result = await deps.claude({
@@ -595,7 +674,10 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
     });
     if (plan.type === "lesson") {
       const raw = extractState(result.text);
-      if (raw) applyState(track, raw, plan.mode, at);
+      if (raw) {
+        const topic = plan.mode === "topic" ? { n: plan.milestone!, k: plan.topic!, variant: plan.variant! } : undefined;
+        applyState(track, raw, plan.mode, at, topic);
+      }
     }
     track.updatedAt = now(deps).toISOString();
     await Promise.all([deps.store.put(user.id, key, history), deps.store.put(user.id, `track:${id}`, track)]);

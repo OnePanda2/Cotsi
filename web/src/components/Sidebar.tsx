@@ -24,7 +24,7 @@ export function Brand({ onClick }: { onClick?: () => void }) {
 
 function progress(t: Me["tracks"][number]): string {
   if (!t.total) return t.kind === "job" ? "Syllabus not built yet" : "Just started";
-  return `${t.done} of ${t.total} ${t.kind === "job" ? "milestones" : "ideas"}`;
+  return `${t.done} of ${t.total} ${t.unit ?? (t.kind === "job" ? "milestones" : "ideas")}`;
 }
 
 /** The side panel: home, settings and every lesson, like a chat app's history. */

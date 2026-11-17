@@ -5,6 +5,7 @@ export type TrackSummary = {
   kind: "topic" | "book" | "job";
   title: string;
   phase: string | null;
+  unit?: "ideas" | "milestones" | "steps";
   total: number;
   done: number;
   nextReviewAt: string | null;
@@ -31,7 +32,16 @@ export type Roadmap = {
   outcome: string;
   capstone: string;
   weeks?: number;
-  milestones: { n: number; title: string; hours?: number; done_means?: string[]; boss?: boolean }[];
+  start_points?: string[];
+  milestones: {
+    n: number;
+    title: string;
+    hours?: number;
+    done_means?: string[];
+    boss?: boolean;
+    capstone?: boolean;
+    topics?: string[];
+  }[];
 };
 
 export type RoleRec = {
@@ -94,7 +104,15 @@ export type Track = {
     roadmap?: Roadmap;
     nextReviewAt?: string;
   };
-  job?: { profile: Profile; prefs: JobPrefs; role: RoleRec; milestonesDone?: number[] };
+  job?: {
+    profile: Profile;
+    prefs: JobPrefs;
+    role: RoleRec;
+    milestonesDone?: number[];
+    topics?: Record<string, { via: "learn" | "revise" | "know"; at: string }>;
+    mustLearn?: string[];
+    started?: Record<string, "learn" | "revise" | "know">;
+  };
 };
 
 export type Message = { role: "user" | "assistant"; text: string; at: string; sources?: Source[] };
