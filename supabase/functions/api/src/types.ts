@@ -67,6 +67,8 @@ export type Roadmap = {
   outcome: string;
   capstone: string;
   weeks?: number;
+  /** Where each weak skill starts, from the level check ("SQL: from what a table is"). */
+  start_points?: string[];
   milestones: { n: number; title: string; hours?: number; done_means?: string[]; boss?: boolean }[];
 };
 
@@ -78,6 +80,8 @@ export type CotsiState = {
   roadmap?: Roadmap;
   nextReviewAt?: string;
   reviewStepDays?: number;
+  /** Facts the learner shared that later lessons need (device, installed tools, level checks). */
+  notes?: string[];
 };
 
 export type Track = {

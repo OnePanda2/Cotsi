@@ -482,6 +482,9 @@ function applyState(track: Track, raw: Record<string, unknown>, mode: LessonMode
       outcome: String(roadmap.outcome ?? ""),
       capstone: String(roadmap.capstone ?? ""),
       weeks: Number(roadmap.weeks) || undefined,
+      start_points: Array.isArray(roadmap.start_points)
+        ? roadmap.start_points.filter((x: unknown) => typeof x === "string").map((x: string) => x.slice(0, 160)).slice(0, 10)
+        : undefined,
       // deno-lint-ignore no-explicit-any
       milestones: roadmap.milestones.slice(0, 12).map((x: any, i: number) => ({
         n: i + 1,
@@ -491,6 +494,12 @@ function applyState(track: Track, raw: Record<string, unknown>, mode: LessonMode
         boss: x.boss === true,
       })),
     };
+  }
+  if (Array.isArray(raw.notes)) {
+    s.notes = (raw.notes as unknown[])
+      .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+      .map((x) => x.trim().slice(0, 160))
+      .slice(-8);
   }
   const doneN = Number(raw.milestone_done);
   if (mode === "milestone" && track.job && Number.isInteger(doneN) && s.roadmap?.milestones.some((x) => x.n === doneN)) {

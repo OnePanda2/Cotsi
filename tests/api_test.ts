@@ -10,6 +10,7 @@ import { readEnv } from "../supabase/functions/api/src/config.ts";
 import { makeMockClaude } from "../supabase/functions/api/src/mock.ts";
 import { MemoryStore } from "../supabase/functions/api/src/store.ts";
 import { costOf } from "../supabase/functions/api/src/budget.ts";
+import { lessonSession } from "../supabase/functions/api/src/prompts.ts";
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`assertion failed: ${msg}`);
@@ -344,6 +345,25 @@ Deno.test("users are isolated; delete removes everything", async () => {
   assert(other.status === 404, "another user can't read the track");
   await call("DELETE", "/me");
   assert((await store.list("dev:riya", "")).length === 0, "all data deleted");
+});
+
+Deno.test("level-check start points and learner notes reach later lessons", () => {
+  // deno-lint-ignore no-explicit-any
+  const track: any = {
+    id: "t1", kind: "job", title: "Data Analyst", createdAt: "", updatedAt: "",
+    state: {
+      notes: ["On Windows 11 laptop", "Has no SQL software yet"],
+      roadmap: { outcome: "o", capstone: "c", start_points: ["SQL: from what a table is"], milestones: [{ n: 1, title: "SQL basics", hours: 6 }] },
+    },
+    job: {
+      profile: { first_name: "", headline: "", location_country: "UK", years_experience: 1, current_role: "", fields: [], skills: [], education: "", languages: [], achievements: [], strengths: [], summary: "", is_cv: true, not_cv_reason: "" },
+      prefs: { hoursPerWeek: 6, horizonMonths: 3, location: "UK", workMode: "either" },
+      role: { title: "Data Analyst", one_liner: "", why_rising: "", signals: [], evidence: [], fit_score: 1, fit_reasons: [], have: [], gaps: ["SQL"], weeks_to_ready: 8, pay_note: "", confidence: "medium", first_step: "" },
+    },
+  };
+  const s = lessonSession({ today: "2026-11-17", name: "Hitesh", mode: "milestone", track, prefs: { style: "plain" }, milestone: 1 });
+  assert(s.includes("SQL: from what a table is"), "milestones know where each weak skill starts");
+  assert(s.includes("Has no SQL software yet"), "notes are handed back");
 });
 
 Deno.test("helpers", () => {
