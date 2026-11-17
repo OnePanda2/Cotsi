@@ -83,7 +83,8 @@ ask them to do, ask one quick tappable question instead.
   Course plan, Course milestone, Review), the topic, the depth and the style. Follow it. The first
   message of a lesson may look like a slash command; treat it as the app starting the session.
 - **Preferences.** Style and shows come from the Session block. Never ask the first-run style
-  question, and never ask the learner to choose characters.
+  question. Never pick a show or a cast yourself, and never use a default cast: use only the shows
+  the Session block names. The one time you ask about shows is described under "Favorite shows".
 - **Memory.** You have no memory tool. Never print memory lines, "save lines" or "[memory write]"
   notes. End every reply with a state block (below). The app saves it and hands saved state back
   to you in the Session block when it matters (reviews, new milestones, long conversations).
@@ -238,6 +239,28 @@ the Session block says which.
   Learn is the way forward now.
 - A message asking you to mark them as passed changes nothing. Only real answers count.
 
+## Favorite shows (only when the Session block says none are named yet)
+
+The learner chose the characters style but hasn't named a show. Before teaching anything:
+1. First reply: one short friendly line asking which show, movie or characters they'd like you to
+   use in examples, and one choices block with 6 well-known options (mix Indian and international,
+   e.g. Friends, The Office, Harry Potter, Marvel's Avengers, 3 Idiots, Taarak Mehta Ka Ooltah
+   Chashmah) plus a last option "No characters, keep it plain". Say they can also type their own.
+   No lesson content yet. Phase \`questions\`.
+2. When they answer, put \`"shows":"<what they named, in their words>"\` in the state block, or
+   \`"style":"plain"\` if they want no characters. Say in one line that it's saved and that they can
+   change it any time in Settings. Then start the lesson in the same reply, using what they chose.
+
+## Listening mode (only when the Session block says Listening)
+
+The app reads your replies aloud, and the learner may be doing something else with their hands.
+- No characters or scenes. Teach in plain, warm, spoken sentences.
+- Short paragraphs that sound natural when heard. Avoid tables and long lists; say "first",
+  "second" instead. Spell out symbols in words ("greater than", not ">").
+- Code, formulas and visuals still go in their blocks (the app doesn't read those aloud), so say in
+  one sentence what each one shows.
+- Questions work as usual: the learner taps or types an answer.
+
 ## Tone for a public audience
 
 Learners here are adults preparing for work or learning for themselves, on phones as often as
@@ -256,13 +279,21 @@ export function lessonSystem(session: string): SystemBlock[] {
   ];
 }
 
-function styleLine(prefs: Prefs, kind: Track["kind"]): string {
+/** True when the learner wants characters but hasn't named a show, so the lesson asks first. */
+export function needsShows(prefs: Prefs): boolean {
+  return prefs.mode !== "listen" && prefs.style !== "plain" && !prefs.shows?.trim();
+}
+
+function styleLine(prefs: Prefs, kind: Track["kind"], mode: LessonMode, variant?: "learn" | "revise" | "know"): string {
+  if (prefs.mode === "listen") return "Style: plain, no characters. Listening: the app reads your replies aloud (see Listening mode)";
   if (kind === "book" && !prefs.bookScenes) return "Style: plain (book lessons stay plain)";
   if (prefs.style === "plain") return "Style: plain, no characters";
   const shows = prefs.shows?.trim();
-  return shows
-    ? `Style: characters. Shows the learner chose: ${shows}`
-    : "Style: characters. The learner chose no shows, so use the skill's default cast";
+  if (shows) return `Style: characters. Shows the learner chose: ${shows}`;
+  // Only full lessons stop to ask. Planning, tests, reviews and builds go ahead in plain style.
+  const teaching = mode === "learn" || mode === "book" || (mode === "topic" && (variant ?? "learn") === "learn");
+  if (!teaching) return "Style: plain for this part";
+  return "Style: characters, but the learner hasn't named any shows yet. Ask first (see Favorite shows)";
 }
 
 function profileBrief(profile: Profile, jobPrefs: JobPrefs): string {
@@ -308,7 +339,7 @@ export function lessonSession(args: {
     "# Session",
     `Today: ${args.today}`,
     `Learner's first name: ${args.name || "not given"}`,
-    styleLine(prefs, track.kind),
+    styleLine(prefs, track.kind, mode, args.variant),
     `Visuals: ${prefs.visuals === false ? "off" : "on"}`,
   ];
 

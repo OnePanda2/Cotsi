@@ -393,6 +393,7 @@ export function TrackPage() {
             trackId={id}
             thread={thread}
             autoStart
+            listen={me?.prefs.mode === "listen"}
             onTrack={onTrack}
             quickReplies={thread === "plan" || /^m\d+t\d+[rq]$/.test(thread) ? undefined : QUICK}
           />

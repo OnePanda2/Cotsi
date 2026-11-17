@@ -1,7 +1,7 @@
 // End-to-end tests of the API with the mock AI and an in-memory store.
 //   deno test -A --config supabase/functions/api/deno.json tests/api_test.ts
 import Anthropic from "@anthropic-ai/sdk";
-import { extractState, handle, isMember, TERMS_VERSION } from "../supabase/functions/api/src/app.ts";
+import { extractState, handle, isMember, showsFromState, TERMS_VERSION } from "../supabase/functions/api/src/app.ts";
 
 // deno-lint-ignore no-explicit-any
 type Called = { status: number; json: any; events: any[]; headers: Headers };
@@ -76,6 +76,7 @@ Deno.test("auth is required and CORS is set", async () => {
 
 Deno.test("topic lesson: create, kickoff, answer, state saved, kickoff hidden", async () => {
   const { call } = setup();
+  await call("PUT", "/prefs", { style: "characters", shows: "Friends" });
   const created = await call("POST", "/tracks", { kind: "topic", title: "  How HTTPS works  " });
   assert(created.status === 200 && created.json.track.title === "How HTTPS works", "track created and trimmed");
   const id = created.json.track.id;
@@ -101,6 +102,49 @@ Deno.test("topic lesson: create, kickoff, answer, state saved, kickoff hidden", 
   assert(me.json.usage.used > 0, "usage tracked");
 });
 
+Deno.test("no shows named: the lesson asks once, saves the answer, and points to Settings", async () => {
+  const { call } = setup();
+  const before = await call("GET", "/me");
+  assert(before.json.prefs.style === "characters" && !before.json.prefs.shows, "new accounts start with no shows");
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Compound interest" })).json.track.id;
+
+  const first = await call("POST", `/tracks/${id}/chat`, {});
+  const asked = first.events.filter((e) => e.t === "text").map((e) => e.d).join("");
+  assert(/which show, movie or characters/i.test(asked) && /No characters, keep it plain/.test(asked), "asks before teaching");
+  assert(!(await call("GET", "/me")).json.prefs.shows, "nothing saved yet");
+
+  const second = await call("POST", `/tracks/${id}/chat`, { message: "Harry Potter" });
+  const saved = second.events.filter((e) => e.t === "text").map((e) => e.d).join("");
+  assert(/Settings/.test(saved) && saved.includes("Leverage Map"), "confirms, mentions Settings, then teaches");
+  assert((await call("GET", "/me")).json.prefs.shows === "Harry Potter", "answer saved to preferences");
+
+  // Once saved, a lesson can't change the learner's own choice.
+  assert(showsFromState({ style: "characters", shows: "Harry Potter" }, { shows: "Something else" }) === null, "set shows are kept");
+  assert(showsFromState({ style: "characters", shows: "" }, { style: "plain" })?.style === "plain", "'no characters' switches to plain");
+  assert(showsFromState({ style: "characters", shows: "", mode: "listen" }, { shows: "X" }) === null, "listening mode never asks");
+
+  const other = (await call("POST", "/tracks", { kind: "topic", title: "How HTTPS works" })).json.track.id;
+  const next = await call("POST", `/tracks/${other}/chat`, {});
+  assert(next.events.filter((e) => e.t === "text").map((e) => e.d).join("").includes("Leverage Map"), "later lessons don't ask again");
+});
+
+Deno.test("preferences: reading or listening, voice and speed are checked", async () => {
+  const { call } = setup();
+  const put = await call("PUT", "/prefs", { style: "characters", shows: "  The   Office ", mode: "listen", voice: "device:en-IN:Heera", rate: 9 });
+  assert(put.json.prefs.mode === "listen" && put.json.prefs.voice === "device:en-IN:Heera", "mode and voice saved");
+  assert(put.json.prefs.rate === undefined && put.json.prefs.shows === "The Office", "bad speed dropped, shows tidied");
+  const odd = await call("PUT", "/prefs", { style: "characters", mode: "sing", rate: 1.25 });
+  assert(odd.json.prefs.mode === undefined && odd.json.prefs.rate === 1.25, "unknown mode ignored");
+
+  const track = { id: "t1", kind: "topic", title: "SQL", createdAt: "", updatedAt: "", state: {} } as const;
+  const base = { today: "2026-11-17", name: "Riya", track: { ...track } };
+  const listen = lessonSession({ ...base, mode: "learn", prefs: { style: "characters", shows: "Friends", mode: "listen" } });
+  assert(/Style: plain, no characters\. Listening/.test(listen), "listening lessons are plain and read aloud");
+  const noShows = { style: "characters" as const, shows: "" };
+  assert(/hasn't named any shows yet/.test(lessonSession({ ...base, mode: "learn", prefs: noShows })), "full lessons ask");
+  assert(/plain for this part/.test(lessonSession({ ...base, mode: "review", prefs: noShows })), "reviews don't stop to ask");
+});
+
 Deno.test("review thread uses saved state and reschedules", async () => {
   const { call } = setup();
   const id = (await call("POST", "/tracks", { kind: "book", title: "Atomic Habits" })).json.track.id;
@@ -113,6 +157,7 @@ Deno.test("review thread uses saved state and reschedules", async () => {
 
 Deno.test("job path: profile, scans, recommend, choose, plan, milestone, research", async () => {
   const { call } = setup();
+  await call("PUT", "/prefs", { style: "characters", shows: "Friends" });
   const notPdf = await call("POST", "/job/profile", { pdfBase64: "AAAA", prefs: PREFS });
   assert(notPdf.status === 400, "non-PDF rejected");
   const early = await call("POST", "/job/scan", { signal: "hiring" });

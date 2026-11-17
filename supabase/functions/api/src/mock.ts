@@ -431,8 +431,53 @@ function firstUserText(opts: RunOpts): string {
   return "";
 }
 
+const ASK_SHOWS = `Before we start: which show, movie or characters would you like me to use in examples? Pick one or type your own.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"Who should star in your lessons?","options":["Friends","The Office","Harry Potter","Marvel's Avengers","3 Idiots","Taarak Mehta Ka Ooltah Chashmah","No characters, keep it plain"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"phase":"questions"}
+\`\`\``;
+
+function lastUserText(opts: RunOpts): string {
+  const last = [...opts.messages].reverse().find((m) => m.role === "user");
+  return typeof last?.content === "string" ? last.content.trim() : "";
+}
+
+/** The sample lesson, opened with a line confirming the shows the learner just picked. */
+function showsSaved(opts: RunOpts): string {
+  const answer = lastUserText(opts).slice(0, 80);
+  const plain = /no characters/i.test(answer);
+  const line = plain
+    ? "Got it: no characters, plain explanations. You can change this any time in Settings."
+    : `Saved: your lessons will use **${answer}**. You can change this any time in Settings.`;
+  const extra = plain ? `"style":"plain",` : `"shows":${JSON.stringify(answer)},`;
+  return `${line}\n\n${LESSON_FIRST.replace("```cotsi-state\n{", "```cotsi-state\n{" + extra)}`;
+}
+
+/** Listening mode: the same first lesson, told plainly with no characters. */
+const LESSON_FIRST_PLAIN = LESSON_FIRST.replace(
+  /\*\*Maya:\*\*[\s\S]*?(?=\*\*The real version:\*\*)/,
+  `Say your bank pays 10% a year, and you put in ₹10,000. After one year you have ₹11,000.
+
+Here's the key part. In year two, the bank pays 10% on ₹11,000, not on ₹10,000. So the ₹1,000 you earned starts earning too. Interest earns interest.
+
+Keep that going for thirty years and you don't end up with ₹40,000. You end up with about ₹1.7 lakh.
+
+`,
+);
+
 function pick(opts: RunOpts): { text: string; sources?: { url: string; title: string }[]; searches?: number } {
   const key = opts.mock ?? "";
+  if (key.startsWith("lesson:learn:") && Number(key.split(":")[2]) <= 1 && opts.system.some((b) => b.text.includes("Listening: the app reads"))) {
+    return { text: LESSON_FIRST_PLAIN };
+  }
+  // The learner wants characters but hasn't named a show: ask first, then save their answer.
+  if (key.startsWith("lesson:") && opts.system.some((b) => b.text.includes("hasn't named any shows yet"))) {
+    return { text: Number(key.split(":")[2]) <= 1 ? ASK_SHOWS : showsSaved(opts) };
+  }
   if (key === "profile") return { text: JSON.stringify(PROFILE) };
   if (key === "recommend") return { text: JSON.stringify(RECS) };
   if (key.startsWith("scan:")) {

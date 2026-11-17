@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { NotReady, useAiReady } from "../components/NotReady";
+import { ShowsPicker } from "../components/LearnMode";
 import type { Prefs, Track } from "../types";
 
 const COPY = {
@@ -19,31 +20,8 @@ const DEPTHS = [
 export function StylePicker({ prefs, onChange }: { prefs: Prefs; onChange: (p: Prefs) => void }) {
   return (
     <fieldset className="style-picker">
-      <legend>How should Cotsi teach you?</legend>
-      <label className={prefs.style === "characters" ? "pick on" : "pick"}>
-        <input type="radio" name="style" checked={prefs.style === "characters"} onChange={() => onChange({ ...prefs, style: "characters" })} />
-        <span>
-          <b>Scenes with characters</b>
-          <small>Ideas play out as dialogue between characters from shows you love.</small>
-        </span>
-      </label>
-      {prefs.style === "characters" && (
-        <input
-          type="text"
-          value={prefs.shows ?? ""}
-          onChange={(e) => onChange({ ...prefs, shows: e.target.value })}
-          placeholder="Your favorite shows or characters (optional)"
-          maxLength={200}
-          aria-label="Your favorite shows or characters"
-        />
-      )}
-      <label className={prefs.style === "plain" ? "pick on" : "pick"}>
-        <input type="radio" name="style" checked={prefs.style === "plain"} onChange={() => onChange({ ...prefs, style: "plain" })} />
-        <span>
-          <b>Plain and direct</b>
-          <small>No characters. Clear explanations and analogies.</small>
-        </span>
-      </label>
+      <legend>Who stars in your lessons?</legend>
+      <ShowsPicker prefs={prefs} onChange={onChange} />
     </fieldset>
   );
 }
@@ -103,7 +81,8 @@ export function NewLesson() {
         </div>
       </fieldset>
 
-      {prefs && kind === "topic" && <StylePicker prefs={prefs} onChange={setPrefs} />}
+      {prefs && kind === "topic" && prefs.mode !== "listen" && <StylePicker prefs={prefs} onChange={setPrefs} />}
+      {prefs?.mode === "listen" && <p className="fine">🎧 Cotsi will read this lesson aloud. Change the voice in Settings.</p>}
       {kind === "book" && <p className="fine">Book lessons use the plain style. Cotsi tells you when it isn't sure about a book's details.</p>}
 
       {error && <div className="notice error">{error}</div>}

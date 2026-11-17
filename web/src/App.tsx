@@ -11,6 +11,8 @@ import { NewLesson } from "./pages/NewLesson";
 import { Privacy } from "./pages/Privacy";
 import { Terms } from "./pages/Terms";
 import { AcceptTerms } from "./components/AcceptTerms";
+import { LearnModeGate } from "./components/LearnMode";
+import { reader } from "./speech";
 import { Settings } from "./pages/Settings";
 import { TrackPage } from "./pages/TrackPage";
 import { getItem, removeItem, setItem } from "./storage";
@@ -107,11 +109,11 @@ function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Signed-in pages wait until the learner has accepted the current Terms of Use. */
+/** Signed-in pages wait until the learner has accepted the current Terms of Use, then asks once how they learn. */
 function TermsGate({ children }: { children: ReactNode }) {
   const { me } = useMe();
   if (me?.terms && !me.terms.accepted) return <AcceptTerms />;
-  return <>{children}</>;
+  return <LearnModeGate>{children}</LearnModeGate>;
 }
 
 function SignedIn({ children }: { children: ReactNode }) {
@@ -140,6 +142,13 @@ export function App() {
       else setError(err instanceof ApiError ? err.message : "Couldn't load your account.");
     }
   }, [signOut]);
+
+  // Read-aloud uses the learner's saved voice and speed.
+  useEffect(() => {
+    reader.voice = me?.prefs.voice;
+    reader.rate = me?.prefs.rate ?? 1;
+    if (me && me.prefs.mode !== "listen") reader.stop();
+  }, [me]);
 
   useEffect(() => {
     if (!ready) return;

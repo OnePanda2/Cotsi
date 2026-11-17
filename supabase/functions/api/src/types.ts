@@ -5,6 +5,11 @@ export type Prefs = {
   shows?: string;
   visuals?: boolean;
   bookScenes?: boolean;
+  /** How they like to learn. Unset until they answer the question after sign-up. */
+  mode?: "read" | "listen";
+  /** Listening mode: the chosen voice's id and the reading speed. */
+  voice?: string;
+  rate?: number;
 };
 
 export type Profile = {

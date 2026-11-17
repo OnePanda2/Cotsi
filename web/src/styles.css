@@ -2370,3 +2370,343 @@ fieldset:disabled .option {
     display: none;
   }
 }
+
+/* ---------- welcome: reading or listening ---------- */
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 620px;
+  margin: 12px auto 0;
+}
+
+.welcome .link.back {
+  align-self: flex-start;
+  padding: 0;
+}
+
+.welcome > .btn {
+  align-self: flex-start;
+}
+
+.modes {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 560px) {
+  .modes {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mode-card {
+  display: grid;
+  gap: 6px;
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.mode-card:hover {
+  border-color: rgba(124, 106, 247, 0.7);
+  background: var(--accent-soft);
+  transform: translateY(-2px);
+}
+
+.mode-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.mode-card b {
+  font: 400 1.5rem / 1.2 var(--serif);
+}
+
+.mode-card small {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.shows-pick {
+  display: grid;
+  gap: 12px;
+}
+
+.shows-pick .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- voices ---------- */
+
+.voices {
+  display: grid;
+  gap: 14px;
+}
+
+.voice-group {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.voice-group legend {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font: 600 0.74rem / 1 var(--sans);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.voice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.voice.on {
+  border-color: rgba(124, 106, 247, 0.7);
+  background: var(--accent-soft);
+}
+
+.voice label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.voice label span {
+  display: grid;
+  min-width: 0;
+}
+
+.voice label b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.voice label small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.voice-play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.voice-play:hover {
+  border-color: rgba(124, 106, 247, 0.8);
+}
+
+.voice-speed {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* ---------- read aloud ---------- */
+
+.listen-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.listen-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.listen-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.listen-bar .listen-main {
+  border-color: rgba(124, 106, 247, 0.6);
+  background: #221d3b;
+}
+
+.composer:has(.listen-bar) {
+  background: linear-gradient(180deg, rgba(7, 6, 11, 0), var(--bg) 12%);
+}
+
+.listen-bar .listen-game {
+  margin-left: auto;
+}
+
+.listen-bar .listen-game.on {
+  border-color: rgba(124, 106, 247, 0.7);
+}
+
+.read-this {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 0;
+  font-size: 0.86rem;
+  text-decoration: none;
+}
+
+/* ---------- the side game ---------- */
+
+.runner-dock {
+  position: sticky;
+  top: 8px;
+  z-index: 6;
+  margin-bottom: 4px;
+}
+
+.runner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "stage head" "stage help";
+  gap: 4px 14px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid rgba(124, 106, 247, 0.45);
+  border-radius: var(--radius);
+  background: rgba(17, 15, 24, 0.94);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+.runner-head {
+  grid-area: head;
+  display: grid;
+  gap: 2px;
+}
+
+.runner-head span {
+  font: 400 1.4rem / 1 var(--serif);
+}
+
+.runner-head small,
+.runner-help {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.runner-help {
+  grid-area: help;
+  align-self: end;
+  margin: 0;
+}
+
+.runner-stage {
+  grid-area: stage;
+  position: relative;
+}
+
+.runner canvas {
+  display: block;
+  width: 120px;
+  height: 160px;
+  border-radius: 10px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.runner-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(7, 6, 11, 0.72);
+  text-align: center;
+  pointer-events: none;
+}
+
+.runner-wait b {
+  font-size: 0.9rem;
+}
+
+.runner-wait small {
+  color: #d9d4ec;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+/* Wide screens: the game sits beside the lesson instead of above it. */
+@media (min-width: 1360px) {
+  .has-game .app {
+    padding-right: 300px;
+  }
+  .runner-dock {
+    position: fixed;
+    top: auto;
+    right: 24px;
+    bottom: 24px;
+    width: 252px;
+    margin: 0;
+  }
+  .runner {
+    grid-template-columns: 1fr;
+    grid-template-areas: "head" "stage" "help";
+  }
+  .runner-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .runner canvas {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 4;
+  }
+}
+
+@media (min-width: 1400px) {
+  .has-syllabus .runner-dock {
+    right: 10px;
+    bottom: 10px;
+    width: 300px;
+  }
+  .has-syllabus.has-game .app {
+    padding-right: 320px;
+  }
+  .has-game .syllabus {
+    padding-bottom: 470px;
+  }
+}

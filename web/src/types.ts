@@ -1,4 +1,13 @@
-export type Prefs = { style: "characters" | "plain"; shows?: string; visuals?: boolean; bookScenes?: boolean };
+export type Prefs = {
+  style: "characters" | "plain";
+  shows?: string;
+  visuals?: boolean;
+  bookScenes?: boolean;
+  /** Reading (characters) or listening (read aloud, no characters). Unset until they choose. */
+  mode?: "read" | "listen";
+  voice?: string;
+  rate?: number;
+};
 
 export type TrackSummary = {
   id: string;

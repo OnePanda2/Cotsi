@@ -10,6 +10,7 @@ import {
   type LessonMode,
   lessonSession,
   lessonSystem,
+  needsShows,
   PROFILE_SCHEMA,
   profileSystem,
   RECOMMEND_SCHEMA,
@@ -385,15 +386,36 @@ async function deleteMe(user: User, deps: Deps): Promise<Response> {
   return json({ ok: true });
 }
 
-async function putPrefs(req: Request, user: User, deps: Deps): Promise<Response> {
-  const input = await body<Partial<Prefs>>(req);
-  const rec = await loadUser(deps, user);
-  rec.prefs = {
+export function cleanPrefs(input: Partial<Prefs>): Prefs {
+  const prefs: Prefs = {
     style: input.style === "plain" ? "plain" : "characters",
-    shows: String(input.shows ?? "").slice(0, 200),
+    shows: String(input.shows ?? "").replace(/\s+/g, " ").trim().slice(0, 200),
     visuals: input.visuals !== false,
     bookScenes: input.bookScenes === true,
   };
+  if (input.mode === "read" || input.mode === "listen") prefs.mode = input.mode;
+  const voice = String(input.voice ?? "").trim();
+  if (voice && voice.length <= 160) prefs.voice = voice;
+  const rate = Number(input.rate);
+  if (Number.isFinite(rate) && rate >= 0.5 && rate <= 2) prefs.rate = Math.round(rate * 100) / 100;
+  return prefs;
+}
+
+/**
+ * When a lesson asked for the learner's favorite shows, its state block carries the answer.
+ * Only used while none are saved, so a lesson can't change preferences the learner set themselves.
+ */
+export function showsFromState(prefs: Prefs, raw: Record<string, unknown>): Prefs | null {
+  if (!needsShows(prefs)) return null;
+  if (raw.style === "plain") return { ...prefs, style: "plain" };
+  const shows = typeof raw.shows === "string" ? raw.shows.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+  return shows ? { ...prefs, shows } : null;
+}
+
+async function putPrefs(req: Request, user: User, deps: Deps): Promise<Response> {
+  const input = await body<Partial<Prefs>>(req);
+  const rec = await loadUser(deps, user);
+  rec.prefs = cleanPrefs(input);
   await deps.store.put(user.id, "user", rec);
   return json({ prefs: rec.prefs });
 }
@@ -672,15 +694,25 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
       at: now(deps).toISOString(),
       ...(result.sources.length ? { sources: result.sources.slice(0, 30) } : {}),
     });
+    let prefs: Prefs | null = null;
     if (plan.type === "lesson") {
       const raw = extractState(result.text);
       if (raw) {
         const topic = plan.mode === "topic" ? { n: plan.milestone!, k: plan.topic!, variant: plan.variant! } : undefined;
         applyState(track, raw, plan.mode, at, topic);
+        prefs = showsFromState(rec.prefs, raw);
       }
     }
     track.updatedAt = now(deps).toISOString();
     await Promise.all([deps.store.put(user.id, key, history), deps.store.put(user.id, `track:${id}`, track)]);
+    if (prefs) {
+      // Re-read the account so a change made elsewhere during the reply isn't overwritten.
+      const fresh = await loadUser(deps, user);
+      if (needsShows(fresh.prefs)) {
+        fresh.prefs = { ...fresh.prefs, style: prefs.style, shows: prefs.shows };
+        await deps.store.put(user.id, "user", fresh);
+      }
+    }
     // A day counts toward the streak once the learner answers or asks something (opening a lesson doesn't).
     if (text) await countToday(deps, user, rec.tz);
     send({ t: "done", track, sources: result.sources.slice(0, 30), cut: result.stopReason === "max_tokens" });

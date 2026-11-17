@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { useAuth } from "../auth";
 import { ReminderControl } from "../components/Reminders";
+import { VoicePicker } from "../components/Voice";
 import type { Prefs } from "../types";
 import { StylePicker } from "./NewLesson";
 
@@ -42,7 +43,27 @@ export function Settings() {
     <div className="panel form">
       <h1>Settings</h1>
       <p className="fine">Signed in as {me.user.email}</p>
-      <StylePicker prefs={prefs} onChange={setPrefs} />
+      <fieldset>
+        <legend>How you learn</legend>
+        <div className="segmented">
+          <button type="button" className={prefs.mode !== "listen" ? "on" : ""} onClick={() => setPrefs({ ...prefs, mode: "read" })}>
+            <b>📖 Reading</b>
+            <small>With characters</small>
+          </button>
+          <button type="button" className={prefs.mode === "listen" ? "on" : ""} onClick={() => setPrefs({ ...prefs, mode: "listen" })}>
+            <b>🎧 Listening</b>
+            <small>Read aloud, plus a game</small>
+          </button>
+        </div>
+      </fieldset>
+      {prefs.mode === "listen" ? (
+        <fieldset>
+          <legend>Voice</legend>
+          <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} />
+        </fieldset>
+      ) : (
+        <StylePicker prefs={prefs} onChange={setPrefs} />
+      )}
       <label className="check">
         <input type="checkbox" checked={prefs.visuals !== false} onChange={(e) => setPrefs({ ...prefs, visuals: e.target.checked })} />
         Show interactive visuals in lessons

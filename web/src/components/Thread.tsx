@@ -1,7 +1,11 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, stream } from "../api";
+import { primeSpeech, reader, speechFor, speechSupported } from "../speech";
+import { getItem, setItem } from "../storage";
 import type { Message, Source, Track } from "../types";
+import { LaneRunner } from "./LaneRunner";
 import { type ChoiceQuestion, choicesOf, Rich } from "./Rich";
+import { ListenBar, useReader } from "./Voice";
 
 type Props = {
   trackId: string;
@@ -15,7 +19,11 @@ type Props = {
   quickReplies?: string[];
   placeholder?: string;
   onTrack?: (track: Track) => void;
+  /** Listening mode: read replies aloud, with the side game. */
+  listen?: boolean;
 };
+
+const GAME_KEY = "cotsi:game";
 
 function Choices({ questions, disabled, onAnswer }: { questions: ChoiceQuestion[]; disabled: boolean; onAnswer: (text: string) => void }) {
   const [picked, setPicked] = useState<Record<number, string>>({});
@@ -75,6 +83,10 @@ function Sources({ sources }: { sources?: Source[] }) {
 
 export function Thread(props: Props) {
   const { trackId, thread, onTrack } = props;
+  const listen = Boolean(props.listen) && speechSupported();
+  const speech = useReader();
+  const [game, setGame] = useState(() => getItem("local", GAME_KEY) === "on");
+  const readKey = (m: Message) => `${trackId}:${thread}:${m.at}`;
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -85,9 +97,13 @@ export function Thread(props: Props) {
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
+  const listenRef = useRef(listen);
+  listenRef.current = listen;
+
   const send = useCallback(
     async (text: string, restart = false) => {
       setError(null);
+      if (listenRef.current) reader.stop();
       setStatus("");
       setStreaming("");
       stick.current = true;
@@ -103,8 +119,10 @@ export function Thread(props: Props) {
             setStatus(e.d);
           } else if (e.t === "done") {
             const done = e as unknown as { track: Track; sources?: Source[] };
-            setMessages((m) => [...(m ?? []), { role: "assistant", text: reply, at: new Date().toISOString(), sources: done.sources }]);
+            const msg: Message = { role: "assistant", text: reply, at: new Date().toISOString(), sources: done.sources };
+            setMessages((m) => [...(m ?? []), msg]);
             onTrack?.(done.track);
+            if (listenRef.current) void reader.read(speechFor(reply), `${trackId}:${thread}:${msg.at}`);
           }
         });
       } catch (err) {
@@ -149,6 +167,17 @@ export function Thread(props: Props) {
     if (stick.current) bottom.current?.scrollIntoView({ block: "end" });
   }, [messages, streaming]);
 
+  // Leaving the lesson stops the reading.
+  useEffect(() => () => reader.stop(), [trackId, thread]);
+
+  // Wide screens make room for the game beside the lesson.
+  const showGame = listen && game;
+  useEffect(() => {
+    if (!showGame) return;
+    document.body.classList.add("has-game");
+    return () => document.body.classList.remove("has-game");
+  }, [showGame]);
+
   useEffect(() => {
     const onScroll = () => {
       stick.current = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;
@@ -175,8 +204,19 @@ export function Thread(props: Props) {
   const calm =
     error?.code === "site_full" || error?.code === "user_limit" || error?.code === "not_ready" || error?.code === "members_only" || error?.code === "terms" || error?.code === "locked";
 
+  const lastReply = [...list].reverse().find((m) => m.role === "assistant");
+  const readLast = () => lastReply && void reader.read(speechFor(lastReply.text), readKey(lastReply));
+  // The game runs while Cotsi writes or reads, and waits while it's the learner's turn.
+  const running = busy || speech.status === "speaking";
+  const waitingNote = speech.status === "paused" ? "Reading is paused. Press ▶ to carry on." : "Your turn: answer Cotsi to keep running.";
+
   return (
-    <div className="thread">
+    <div className="thread" onPointerDownCapture={listen ? primeSpeech : undefined}>
+      {showGame && (
+        <div className="runner-dock">
+          <LaneRunner running={running} waitingNote={waitingNote} />
+        </div>
+      )}
       {empty && props.startLabel && (
         <div className="start-card">
           {props.startHint && <p>{props.startHint}</p>}
@@ -190,6 +230,15 @@ export function Thread(props: Props) {
         <article key={i} className={`msg ${m.role}`}>
           {m.role === "assistant" ? <Rich text={m.text} /> : <p>{m.text}</p>}
           {m.role === "assistant" && <Sources sources={m.sources} />}
+          {m.role === "assistant" && listen && (
+            <button
+              type="button"
+              className="link read-this"
+              onClick={() => (speech.key === readKey(m) ? reader.stop() : void reader.read(speechFor(m.text), readKey(m)))}
+            >
+              {speech.key === readKey(m) ? "■ Stop reading" : "🔊 Read this aloud"}
+            </button>
+          )}
         </article>
       ))}
 
@@ -228,6 +277,17 @@ export function Thread(props: Props) {
 
       {(!empty || !props.startLabel) && (
         <form className="composer" onSubmit={submit}>
+          {listen && (
+            <ListenBar
+              onReadLast={readLast}
+              canReadLast={Boolean(lastReply) && !busy}
+              game={game}
+              onGame={() => {
+                setItem("local", GAME_KEY, game ? "off" : "on");
+                setGame(!game);
+              }}
+            />
+          )}
           {props.quickReplies && !busy && list.length > 0 && (
             <div className="quick">
               {props.quickReplies.map((q) => (
