@@ -16,7 +16,7 @@ export type TrackSummary = {
   kind: "topic" | "book" | "job";
   title: string;
   phase: string | null;
-  unit?: "ideas" | "milestones" | "steps";
+  unit?: "ideas" | "chapters" | "milestones" | "steps";
   total: number;
   done: number;
   nextReviewAt: string | null;
@@ -115,6 +115,9 @@ export type Track = {
     cards?: { q: string; a: string }[];
     roadmap?: Roadmap;
     nextReviewAt?: string;
+    outline?: Outline;
+    partsDone?: number[];
+    projectDone?: boolean;
   };
   job?: {
     profile: Profile;
@@ -127,4 +130,21 @@ export type Track = {
   };
 };
 
-export type Message = { role: "user" | "assistant"; text: string; at: string; sources?: Source[] };
+/** Topics and books: core ideas (or chapters), each its own page, in any order. */
+export type Outline = {
+  kind: "ideas" | "chapters";
+  anchor: string;
+  parts: { title: string; gist: string }[];
+  project: string;
+  approx?: boolean;
+  legacy?: boolean;
+};
+
+export type Message = {
+  role: "user" | "assistant";
+  text: string;
+  at: string;
+  sources?: Source[];
+  /** A picture the learner shared: a small preview, and what Cotsi read from it. */
+  image?: { thumb: string; desc?: string };
+};

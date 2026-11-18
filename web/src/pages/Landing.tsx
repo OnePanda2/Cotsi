@@ -24,7 +24,7 @@ export const SECTIONS = [
     kind: "book",
     icon: "📖",
     title: "Understand a book",
-    text: "Get the core ideas of any book, what they mean for you, and a quick check that they stuck.",
+    text: "See every chapter at a glance, then open any one for its core ideas and what they mean for you.",
     cta: "Pick a book",
     to: "/new/book",
   },

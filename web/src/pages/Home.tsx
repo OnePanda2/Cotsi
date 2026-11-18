@@ -20,8 +20,8 @@ function StreakCard({ me }: { me: Me }) {
   const line = s.doneToday
     ? "You've learned today. See you tomorrow."
     : s.current > 0
-      ? "Answer one question today to keep it going."
-      : "Answer one question today to start your streak.";
+      ? "Learn something today to keep it going."
+      : "Learn something today to start your streak.";
   return (
     <section className={`card streak${s.doneToday ? " done" : ""}`} aria-label="Your learning streak">
       <div className="streak-top">

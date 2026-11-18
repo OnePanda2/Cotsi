@@ -2354,6 +2354,159 @@ fieldset:disabled .option {
   color: #c8f5d8;
 }
 
+/* ---------- overview (topics and books: every page open) ---------- */
+
+.ov-anchor {
+  margin: -6px 4px 0;
+  color: #d9d4ec;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.ov-note {
+  margin: 0 4px 6px;
+}
+
+.overview .syl-title {
+  display: grid;
+  gap: 2px;
+}
+
+.ov-gist {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.overview .syl-milestone li.open button {
+  font-weight: 500;
+}
+
+.overview .syl-milestone li.open .syl-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(124, 106, 247, 0.45);
+  font-size: 0.68rem;
+}
+
+.overview .syl-milestone li.on .syl-icon {
+  background: var(--accent);
+  color: #fff;
+}
+
+.part-end {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.part-end .notice {
+  margin: 0;
+}
+
+.planning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+}
+
+/* ---------- pictures in lessons ---------- */
+
+.btn.attach {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #d9d4ec;
+}
+
+.pic-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  color: #d9d4ec;
+}
+
+.pic-chip img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 9px;
+}
+
+.pic-chip .link {
+  padding: 4px 6px;
+  text-decoration: none;
+}
+
+.pic-note {
+  margin: 0;
+}
+
+.msg-pic {
+  margin: 0 0 6px;
+  display: grid;
+  gap: 6px;
+  white-space: normal;
+}
+
+.msg-pic img {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 240px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.msg-pic details {
+  font-size: 0.8rem;
+}
+
+.msg-pic summary {
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.pic-desc {
+  margin-top: 6px;
+  white-space: normal;
+  opacity: 0.92;
+}
+
+.pic-desc p,
+.pic-desc pre {
+  margin: 4px 0;
+}
+
+.msg-pic,
+.msg-pic details,
+.pic-desc {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pic-desc pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+  font-size: 0.78rem;
+}
+
 /* Wide screens: the syllabus stays open on the right (unless the game has that side). */
 @media (min-width: 1400px) {
   body.has-syllabus:not(.has-game) .app {

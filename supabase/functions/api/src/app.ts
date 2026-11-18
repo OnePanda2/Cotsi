@@ -50,6 +50,8 @@ import {
   removeFromBoard,
   weekStart,
 } from "./game.ts";
+import { cleanOutline, outlineFromMap, outlineSystem, OUTLINE_SCHEMA, outlineUser, partOf, setOutline } from "./outline.ts";
+import { describeImage, imageNote, readImage, type SharedImage } from "./vision.ts";
 import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, topicKey } from "./syllabus.ts";
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
 import type {
@@ -110,7 +112,8 @@ const MAX_HISTORY = 40;
 const MAX_MESSAGE_CHARS = 6000;
 const MAX_PDF_BASE64 = 6_000_000; // about 4.4 MB of PDF
 // Topic threads: m<milestone>t<topic> plus l (learn), r (revise) or q (test only).
-const THREAD_ID = /^(main|plan|hunt|edge|m[1-9]\d?|m[1-9]\d?t[1-9]\d?[lrq]|review-\d{8})$/;
+// Topics and books: p<n> is one idea or chapter of the overview, build is the hands-on project.
+const THREAD_ID = /^(main|plan|hunt|edge|build|p[1-9]\d?|m[1-9]\d?|m[1-9]\d?t[1-9]\d?[lrq]|review-\d{8})$/;
 
 class HttpError extends Error {
   constructor(public status: number, message: string, public code?: string) {
@@ -264,6 +267,7 @@ async function loadTrack(deps: Deps, user: User, id: string): Promise<Track> {
 
 function trackSummary(t: Track) {
   const trunk = t.state.map?.trunk?.length ?? 0;
+  const outline = t.state.outline;
   const milestones = t.state.roadmap?.milestones ?? [];
   const topical = t.kind === "job" && hasTopics(milestones);
   const statuses = topical ? stepStatuses(milestones, t.job ?? {}) : [];
@@ -272,11 +276,11 @@ function trackSummary(t: Track) {
     kind: t.kind,
     title: t.title,
     phase: t.state.phase ?? null,
-    unit: t.kind !== "job" ? "ideas" : topical ? "steps" : "milestones",
-    total: t.kind === "job" ? (topical ? statuses.length : milestones.length) : trunk,
+    unit: t.kind !== "job" ? (outline?.kind ?? "ideas") : topical ? "steps" : "milestones",
+    total: t.kind === "job" ? (topical ? statuses.length : milestones.length) : outline ? outline.parts.length : trunk,
     done: t.kind === "job"
       ? topical ? statuses.filter((x) => x.done).length : t.job?.milestonesDone?.length ?? 0
-      : t.state.progress?.done?.length ?? 0,
+      : outline ? (t.state.partsDone?.length ?? 0) : t.state.progress?.done?.length ?? 0,
     nextReviewAt: t.state.nextReviewAt ?? null,
     updatedAt: t.updatedAt,
   };
@@ -359,6 +363,7 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
     if (m === "GET" && seg.length === 2) return getTrack(seg[1], url, user, deps);
     if (m === "DELETE" && seg.length === 2) return deleteTrack(seg[1], user, deps);
     if (m === "POST" && seg[2] === "chat") return chat(req, seg[1], user, deps);
+    if (m === "POST" && seg[2] === "outline") return postOutline(seg[1], user, deps);
   }
 
   if (m === "GET" && path === "/job") return getJob(user, deps);
@@ -476,6 +481,53 @@ async function deleteTrack(id: string, user: User, deps: Deps): Promise<Response
   return json({ ok: true });
 }
 
+/** Builds the overview of a topic or book: its core ideas or chapters, each opened as its own page. */
+async function postOutline(id: string, user: User, deps: Deps): Promise<Response> {
+  const track = await loadTrack(deps, user, id);
+  if (track.kind === "job") throw new HttpError(400, "Job paths have a syllabus instead.");
+  if (track.state.outline) return json({ track });
+  const fromMap = outlineFromMap(track);
+  if (fromMap) {
+    setOutline(track.state, fromMap, track.title);
+  } else {
+    await requireBudget(deps, user);
+    const timeout = withTimeout(deps);
+    let result: RunResult;
+    try {
+      result = await deps.claude({
+        model: deps.env.modelPlan,
+        system: outlineSystem(),
+        messages: [{ role: "user", content: outlineUser(track) }],
+        maxTokens: 4000,
+        effort: "low",
+        jsonSchema: OUTLINE_SCHEMA,
+        signal: timeout.signal,
+        mock: `outline:${track.kind}`,
+      });
+    } finally {
+      timeout.clear();
+    }
+    await recordSpend(deps.store, user.id, now(deps), result.costUsd, {});
+    let outline = null;
+    try {
+      outline = cleanOutline(track.kind, JSON.parse(result.text));
+    } catch {
+      // handled below
+    }
+    if (!outline) throw new HttpError(502, "I couldn't plan this one. Please try again.");
+    // Another tab may have made it meanwhile; keep the first.
+    const fresh = await loadTrack(deps, user, id);
+    if (fresh.state.outline) return json({ track: fresh });
+    setOutline(fresh.state, outline, fresh.title);
+    fresh.updatedAt = now(deps).toISOString();
+    await deps.store.put(user.id, `track:${id}`, fresh);
+    return json({ track: fresh });
+  }
+  track.updatedAt = now(deps).toISOString();
+  await deps.store.put(user.id, `track:${id}`, track);
+  return json({ track });
+}
+
 function defaultThread(track: Track): string {
   return track.kind === "job" ? "plan" : "main";
 }
@@ -485,7 +537,7 @@ function defaultThread(track: Track): string {
 type Variant = "learn" | "revise" | "know";
 
 type ThreadPlan =
-  | { type: "lesson"; mode: LessonMode; milestone?: number; topic?: number; variant?: Variant }
+  | { type: "lesson"; mode: LessonMode; milestone?: number; topic?: number; variant?: Variant; part?: number }
   | { type: "research"; which: "hunt" | "edge" };
 
 const VARIANT: Record<string, Variant> = { l: "learn", r: "revise", q: "know" };
@@ -493,8 +545,13 @@ const VARIANT: Record<string, Variant> = { l: "learn", r: "revise", q: "know" };
 function planThread(track: Track, thread: string): ThreadPlan {
   if (thread.startsWith("review-")) return { type: "lesson", mode: "review" };
   if (track.kind !== "job") {
-    if (thread !== "main") throw new HttpError(400, "Unknown thread.");
-    return { type: "lesson", mode: track.kind === "book" ? "book" : "learn" };
+    if (thread === "main") return { type: "lesson", mode: track.kind === "book" ? "book" : "learn" };
+    const outline = track.state.outline;
+    if (!outline) throw new HttpError(409, "The overview isn't ready yet.");
+    if (thread === "build") return { type: "lesson", mode: "build" };
+    const k = partOf(thread);
+    if (!k || k > outline.parts.length) throw new HttpError(404, "That part of the overview doesn't exist.");
+    return { type: "lesson", mode: "part", part: k };
   }
   if (thread === "plan") return { type: "lesson", mode: "plan" };
   if (thread === "hunt" || thread === "edge") return { type: "research", which: thread };
@@ -540,11 +597,29 @@ function applyState(
   mode: LessonMode,
   today: Date,
   topic?: { n: number; k: number; variant: Variant },
+  part?: number,
 ): void {
   const s: CotsiState = track.state;
   if (mode === "topic") {
     applyTopicResult(track, raw, today, topic);
     if (Array.isArray(raw.notes)) s.notes = cleanNotes(raw.notes);
+    return;
+  }
+  if (mode === "part" || mode === "build") {
+    // Pages of an overview: no tests, just what's been covered, notes and review cards.
+    if (mode === "part" && part && raw.part_done === true) {
+      s.partsDone = [...new Set([...(s.partsDone ?? []), part])].sort((a, b) => a - b);
+    }
+    if (mode === "build" && raw.project_done === true) s.projectDone = true;
+    if (Array.isArray(raw.notes)) s.notes = cleanNotes(raw.notes);
+    const cards = cleanCards(raw.cards);
+    // Each page adds its own cards; keep the newest when there are many.
+    if (cards.length) s.cards = [...(s.cards ?? []), ...cards].slice(-40);
+    const days = Number(raw.next_review_in_days);
+    if (Number.isFinite(days) && days >= 1 && days <= 120 && !s.nextReviewAt) {
+      s.reviewStepDays = Math.round(days);
+      s.nextReviewAt = new Date(today.getTime() + Math.round(days) * 86400000).toISOString().slice(0, 10);
+    }
     return;
   }
   const phases = ["questions", "teaching", "unlock", "wrapup", "done"];
@@ -556,11 +631,8 @@ function applyState(
   if (raw.progress && typeof raw.progress === "object" && mode !== "plan") {
     s.progress = raw.progress as CotsiState["progress"];
   }
-  if (Array.isArray(raw.cards) && raw.cards.length) {
-    s.cards = (raw.cards as { q?: unknown; a?: unknown }[])
-      .filter((c) => c && typeof c.q === "string" && typeof c.a === "string")
-      .slice(0, 20) as CotsiState["cards"];
-  }
+  const cards = cleanCards(raw.cards);
+  if (cards.length) s.cards = cards.slice(0, 20);
   const days = Number(raw.next_review_in_days);
   if (Number.isFinite(days) && days >= 1 && days <= 120 && mode !== "plan") {
     s.reviewStepDays = Math.round(days);
@@ -595,6 +667,14 @@ function applyState(
   if (mode === "milestone" && track.job && Number.isInteger(doneN) && s.roadmap?.milestones.some((x) => x.n === doneN)) {
     track.job.milestonesDone = [...new Set([...(track.job.milestonesDone ?? []), doneN])].sort((a, b) => a - b);
   }
+}
+
+function cleanCards(raw: unknown): { q: string; a: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as { q?: unknown; a?: unknown }[])
+    .filter((c) => c && typeof c.q === "string" && typeof c.a === "string")
+    .map((c) => ({ q: (c.q as string).slice(0, 300), a: (c.a as string).slice(0, 600) }))
+    .slice(0, 20);
 }
 
 function cleanNotes(raw: unknown[]): string[] {
@@ -632,13 +712,20 @@ function applyTopicResult(track: Track, raw: Record<string, unknown>, at: Date, 
 }
 
 async function chat(req: Request, id: string, user: User, deps: Deps): Promise<Response> {
-  const input = await body<{ thread?: string; message?: string; restart?: boolean }>(req);
+  const input = await body<{ thread?: string; message?: string; restart?: boolean; image?: unknown }>(req);
   const track = await loadTrack(deps, user, id);
   const thread = input.thread ?? defaultThread(track);
   if (!THREAD_ID.test(thread)) throw new HttpError(400, "Unknown thread.");
   const plan = planThread(track, thread);
   const text = String(input.message ?? "").trim();
   if (text.length > MAX_MESSAGE_CHARS) throw new HttpError(400, "That message is too long. Please shorten it.");
+  let image: SharedImage | null = null;
+  if (input.image) {
+    if (plan.type !== "lesson") throw new HttpError(400, "Pictures can be shared in lessons.");
+    const checked = readImage(input.image);
+    if (typeof checked === "string") throw new HttpError(400, checked);
+    image = checked;
+  }
   await requireBudget(deps, user);
 
   const key = `msgs:${id}:${thread}`;
@@ -649,14 +736,15 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
 
   if (!history.length) {
     const first = plan.type === "lesson"
-      ? kickoff(plan.mode, track, plan.milestone, plan.topic, plan.variant)
+      ? kickoff(plan.mode, track, plan.milestone, plan.topic, plan.variant, plan.part)
       : researchUser({ today, track, extra: text || undefined });
     history = [{ role: "user", text: first, at: at.toISOString(), hidden: true }];
-    if (text && plan.type === "lesson") history.push({ role: "user", text, at: at.toISOString() });
+    if ((text || image) && plan.type === "lesson") history.push({ role: "user", text, at: at.toISOString() });
   } else {
-    if (!text) throw new HttpError(400, "Type a message first.");
+    if (!text && !image) throw new HttpError(400, "Type a message first.");
     history.push({ role: "user", text, at: at.toISOString() });
   }
+  const mine = history[history.length - 1];
 
   if (plan.type === "lesson" && plan.mode === "topic" && track.job && plan.variant) {
     const key = topicKey(plan.milestone!, plan.topic!);
@@ -664,14 +752,24 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
   }
 
   const truncated = history.length > MAX_HISTORY;
-  let recent = truncated ? history.slice(-MAX_HISTORY) : history;
-  while (recent.length && recent[0].role !== "user") recent = recent.slice(1);
-  const messages: ChatMessage[] = recent.map((x) => ({ role: x.role, content: x.text }));
 
   return sse(async (send) => {
     const timeout = withTimeout(deps);
     let result: RunResult;
     try {
+      if (image) {
+        // Read the picture once, with the small model, and keep only what it saw.
+        send({ t: "status", d: "Looking at your picture…" });
+        const seen = await describeImage(deps.claude, deps.env.modelVision, image, text, timeout.signal);
+        await recordSpend(deps.store, user.id, at, seen.costUsd, { images: 1 });
+        const desc = seen.text.trim().slice(0, 6000);
+        if (seen.refused || !desc) throw new HttpError(422, "I couldn't read that picture. Try another one, or describe it in words.", "refused");
+        mine.image = { thumb: image.thumb, desc };
+        send({ t: "status", d: "" });
+      }
+      let recent = truncated ? history.slice(-MAX_HISTORY) : history;
+      while (recent.length && recent[0].role !== "user") recent = recent.slice(1);
+      const messages: ChatMessage[] = recent.map((x) => ({ role: x.role, content: x.image ? imageNote(x.image.desc, x.text) : x.text }));
       if (plan.type === "lesson") {
         const session = lessonSession({
           today,
@@ -682,6 +780,7 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
           milestone: plan.milestone,
           topic: plan.topic,
           variant: plan.variant,
+          part: plan.part,
           truncated,
         });
         result = await deps.claude({
@@ -692,7 +791,7 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
           effort: plan.mode === "plan" || history.length <= 1 ? "medium" : "low",
           onText: (d) => send({ t: "text", d }),
           signal: timeout.signal,
-          mock: `lesson:${plan.mode === "topic" ? `topic-${plan.variant}` : plan.mode}:${history.filter((x) => x.role === "user").length}`,
+          mock: `lesson:${plan.mode === "topic" ? `topic-${plan.variant}` : plan.mode}:${history.filter((x) => x.role === "user").length}${plan.part ? `:${plan.part}` : ""}`,
         });
       } else {
         result = await deps.claude({
@@ -728,7 +827,7 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
       const raw = extractState(result.text);
       if (raw) {
         const topic = plan.mode === "topic" ? { n: plan.milestone!, k: plan.topic!, variant: plan.variant! } : undefined;
-        applyState(track, raw, plan.mode, at, topic);
+        applyState(track, raw, plan.mode, at, topic, plan.part);
         prefs = showsFromState(rec.prefs, raw);
       }
     }
@@ -742,9 +841,16 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
         await deps.store.put(user.id, "user", fresh);
       }
     }
-    // A day counts toward the streak once the learner answers or asks something (opening a lesson doesn't).
-    if (text) await countToday(deps, user, rec.tz);
-    send({ t: "done", track, sources: result.sources.slice(0, 30), cut: result.stopReason === "max_tokens" });
+    // A day counts toward the streak once the learner answers or asks something, or reads a new page of
+    // a topic or book (just opening a lesson doesn't).
+    if (text || image || (plan.type === "lesson" && plan.mode === "part" && history.length <= 2)) await countToday(deps, user, rec.tz);
+    send({
+      t: "done",
+      track,
+      sources: result.sources.slice(0, 30),
+      cut: result.stopReason === "max_tokens",
+      ...(mine.image ? { image: mine.image } : {}),
+    });
   });
 }
 

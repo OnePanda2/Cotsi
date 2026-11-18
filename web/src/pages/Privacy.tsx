@@ -19,13 +19,21 @@ export function Privacy() {
           day. Turning reminders off deletes the address.
         </li>
         <li>
+          If you share a picture in a lesson (a screenshot or a photo of your notes): a small preview of it and a text description of what's in
+          it, so the lesson can refer back to it. The full-size picture is not kept.
+        </li>
+        <li>
           If you use job preparation: a career profile taken from your CV (skills, experience, education, country). The CV file itself is not kept,
           and contact details in it are left out of the profile.
         </li>
       </ul>
       <h2>How your data is used</h2>
       <ul>
-        <li>Lessons and CV analysis are produced by Claude, an AI model from Anthropic. What you type, and your CV when you upload it, is sent to Anthropic to generate the reply.</li>
+        <li>
+          Lessons and CV analysis are produced by Claude, an AI model from Anthropic. What you type, your CV when you upload it, and pictures you
+          share are sent to Anthropic to generate the reply.
+        </li>
+        <li>In listening mode, the text of each reply is sent to OpenAI to turn it into speech. Nothing else about you is sent.</li>
         <li>Job research uses web search. Your name and contact details are not included in searches.</li>
         <li>Your data is stored with Supabase. It is never sold or used for advertising.</li>
       </ul>

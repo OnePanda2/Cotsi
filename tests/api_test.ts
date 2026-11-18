@@ -249,6 +249,107 @@ Deno.test("read-aloud: off without an OpenAI key; with one, voices, previews and
   assert((await call("GET", "/tts/preview?voice=xx&rate=1")).status === 400, "unknown voice refused");
 });
 
+Deno.test("topics and books: an overview, any page in any order, no tests, optional project", async () => {
+  const { call } = setup();
+  await call("PUT", "/prefs", { style: "plain" });
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Compound interest" })).json.track.id;
+
+  const early = await call("POST", `/tracks/${id}/chat`, { thread: "p1" });
+  assert(early.status === 409, "pages wait for the overview");
+
+  const made = await call("POST", `/tracks/${id}/outline`);
+  const outline = made.json.track.state.outline;
+  assert(made.status === 200 && outline.kind === "ideas" && outline.parts.length === 3, "overview of core ideas");
+  assert(made.json.track.state.map.trunk.length === 3, "the review quiz gets a map");
+  const again = await call("POST", `/tracks/${id}/outline`);
+  assert(again.json.track.state.outline.parts[0].title === outline.parts[0].title, "asking twice keeps the first overview");
+
+  // Any page, in any order: the third idea first.
+  const third = await call("POST", `/tracks/${id}/chat`, { thread: "p3" });
+  assert(third.json.t === "done" && third.json.track.state.partsDone.join() === "3", "page 3 opens first and is marked read");
+  const first = await call("POST", `/tracks/${id}/chat`, { thread: "p1" });
+  const text = first.events.filter((e) => e.t === "text").map((e) => e.d).join("");
+  assert(!/your turn|which is right/i.test(text) && text.includes("What next?"), "next steps, not a quiz");
+  assert(first.json.track.state.partsDone.join() === "1,3", "pages read are tracked");
+  assert(first.json.track.state.cards.length >= 2, "each page adds review cards");
+  assert((await call("POST", `/tracks/${id}/chat`, { thread: "p9" })).status === 404, "no page past the overview");
+
+  const me = await call("GET", "/me");
+  assert(me.json.tracks[0].unit === "ideas" && me.json.tracks[0].total === 3 && me.json.tracks[0].done === 2, "home shows pages read");
+
+  const build = await call("POST", `/tracks/${id}/chat`, { thread: "build" });
+  const brief = build.events.filter((e) => e.t === "text").map((e) => e.d).join("");
+  assert(/I have my own idea/.test(brief) && /What are you on/.test(brief), "project asks which one and the device");
+
+  // The prompt for these pages forbids tests and carries the overview.
+  const track = me.json.tracks[0] && (await call("GET", `/tracks/${id}`)).json.track;
+  const session = lessonSession({ today: "2026-11-18", name: "Riya", mode: "part", track, prefs: { style: "plain" }, part: 2 });
+  assert(session.includes("Topic idea page") && session.includes("idea 2 of 3: Time beats amount") && session.includes("(read)"), "session names the page");
+
+  const book = (await call("POST", "/tracks", { kind: "book", title: "Atomic Habits" })).json.track.id;
+  const bo = await call("POST", `/tracks/${book}/outline`);
+  assert(bo.json.track.state.outline.kind === "chapters" && bo.json.track.state.outline.parts.length === 5, "books list chapters");
+  const ch = await call("POST", `/tracks/${book}/chat`, { thread: "p4" });
+  assert(ch.events.map((e) => e.d ?? "").join("").includes("plateau"), "a chapter page teaches the chapter");
+  assert((await call("GET", "/me")).json.tracks.find((t: { id: string }) => t.id === book).unit === "chapters", "home counts chapters");
+});
+
+Deno.test("older lessons reuse their map as the overview, at no cost", async () => {
+  const { call } = setup();
+  await call("PUT", "/prefs", { style: "plain" });
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "How HTTPS works" })).json.track.id;
+  await call("POST", `/tracks/${id}/chat`, {});
+  await call("POST", `/tracks/${id}/chat`, { message: "₹11,000" });
+  const usedBefore = (await call("GET", "/me")).json.usage.used;
+  const made = await call("POST", `/tracks/${id}/outline`);
+  const o = made.json.track.state.outline;
+  assert(o.legacy === true && o.parts.length === 3 && made.json.track.state.partsDone.join() === "1", "map becomes the overview, progress kept");
+  assert((await call("GET", "/me")).json.usage.used === usedBefore, "no AI call");
+  assert((await call("GET", `/tracks/${id}?thread=main`)).json.messages.length > 0, "the earlier lesson is still there");
+});
+
+Deno.test("pictures: read once by the small model, described for the lesson", async () => {
+  const { call, deps } = setup();
+  await call("PUT", "/prefs", { style: "plain" });
+  const seen: { model: string; content: unknown }[] = [];
+  const mock = deps.claude;
+  deps.claude = (opts) => {
+    seen.push({ model: opts.model, content: opts.messages });
+    return mock(opts);
+  };
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Python basics" })).json.track.id;
+  await call("POST", `/tracks/${id}/outline`);
+  await call("POST", `/tracks/${id}/chat`, { thread: "p1" });
+
+  const bad = await call("POST", `/tracks/${id}/chat`, { thread: "p1", image: { data: "aGVsbG8=" } });
+  assert(bad.status === 400 && /photo or screenshot/.test(bad.json.error), "only real pictures");
+  const huge = await call("POST", `/tracks/${id}/chat`, { thread: "p1", image: { data: "/9j/" + "A".repeat(2_000_000) } });
+  assert(huge.status === 400 && /too large/.test(huge.json.error), "size limit");
+
+  seen.length = 0;
+  const thumb = "data:image/jpeg;base64,/9j/AAAA";
+  const sent = await call("POST", `/tracks/${id}/chat`, { thread: "p1", message: "Why this error?", image: { data: "/9j/" + "A".repeat(500), thumb } });
+  assert(sent.json.t === "done" && sent.events.some((e) => e.t === "status" && /picture/.test(e.d)), "says it's looking");
+  assert(seen[0].model === "claude-haiku-5-5", "the small model reads the picture");
+  assert(JSON.stringify(seen[0].content).includes('"type":"image"'), "it gets the picture");
+  assert(seen[1].model === "claude-sonnet-5-5", "the lesson model answers");
+  const lessonSaw = JSON.stringify(seen[1].content);
+  assert(lessonSaw.includes("TypeError") && lessonSaw.includes("Why this error?") && !lessonSaw.includes("/9j/"), "the lesson gets the description, not the picture");
+
+  const got = await call("GET", `/tracks/${id}?thread=p1`);
+  const mine = got.json.messages.find((m: { image?: unknown }) => m.image);
+  assert(mine.image.thumb === thumb && mine.image.desc.includes("TypeError"), "the preview and description are kept");
+
+  // Later replies reuse the description, without reading the picture again.
+  seen.length = 0;
+  await call("POST", `/tracks/${id}/chat`, { thread: "p1", message: "Thanks" });
+  assert(seen.length === 1 && JSON.stringify(seen).includes("TypeError"), "no second picture read");
+
+  const onlyPicture = await call("POST", `/tracks/${id}/chat`, { thread: "p1", image: { data: "iVBORw0KGgo" + "A".repeat(100) } });
+  assert(onlyPicture.json.t === "done", "a picture alone is enough");
+  assert((await call("GET", "/me")).json.usage.used > 0, "picture reads count toward the daily limit");
+});
+
 Deno.test("review thread uses saved state and reschedules", async () => {
   const { call } = setup();
   const id = (await call("POST", "/tracks", { kind: "book", title: "Atomic Habits" })).json.track.id;

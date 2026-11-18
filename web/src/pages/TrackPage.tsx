@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
+import { nextPart, OverviewPanel, partOf, PartHeader, PartNext, partThread } from "../components/Overview";
 import { parseTopicThread, statusesOf, StepCard, SyllabusPanel, TopicHeader } from "../components/Syllabus";
 import { Thread } from "../components/Thread";
 import { DREAMS, dreamInfo } from "../dreams";
@@ -249,6 +250,72 @@ function MilestoneList({ track, setThread }: { track: Track; setThread: (t: stri
   );
 }
 
+/** Topics and books: the overview on the right, one page per idea or chapter, open in any order. */
+function TopicPath({ track, thread, setThread, onTrack }: { track: Track; thread: string; setThread: (t: string) => void; onTrack: (t: Track) => void }) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [tries, setTries] = useState(0);
+  const outline = track.state.outline;
+
+  // The overview comes first. Older lessons reuse their map; new ones take a few seconds.
+  useEffect(() => {
+    if (outline) return;
+    let cancelled = false;
+    setError("");
+    api<{ track: Track }>("POST", `/tracks/${track.id}/outline`)
+      .then((d) => !cancelled && onTrack(d.track))
+      .catch((err) => !cancelled && setError(err instanceof ApiError ? err.message : "Couldn't plan this one."));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track.id, Boolean(outline), tries]);
+
+  if (!outline) {
+    return error ? (
+      <div className="notice error" role="alert">
+        {error}{" "}
+        <button className="link" onClick={() => setTries((n) => n + 1)}>
+          Try again
+        </button>
+      </div>
+    ) : (
+      <p className="muted center planning">
+        <span className="dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>{" "}
+        Mapping out the {track.kind === "book" ? "chapters" : "key ideas"}…
+      </p>
+    );
+  }
+  const k = partOf(thread);
+  const pick = (t: string) => {
+    setOpen(false);
+    setThread(t);
+  };
+  return (
+    <>
+      <OverviewPanel track={track} open={open} current={thread} onPick={pick} onClose={() => setOpen(false)} />
+      <div className="syl-bar">
+        <span className="fine">{outline.kind === "ideas" ? "Open any idea, in any order." : "Open any chapter, in any order."}</span>
+        <button className="btn ghost small syl-open" onClick={() => setOpen(true)}>
+          📋 Overview
+        </button>
+      </div>
+      {k && <PartHeader track={track} k={k} />}
+      {thread === "build" && (
+        <div className="topic-head">
+          <p className="kicker">🛠 Hands-on project{track.state.projectDone ? " · ✓ done" : ""}</p>
+          <h2>Put it into practice</h2>
+          {outline.project && <p className="fine">{outline.project}</p>}
+        </div>
+      )}
+    </>
+  );
+}
+
 function JobPath({ track, nav }: { track: Track; nav: Nav }) {
   const { thread, setThread } = nav;
   const role = track.job!.role;
@@ -313,10 +380,17 @@ export function TrackPage() {
   }, [id]);
 
   const isJob = track?.kind === "job";
-  const thread = params.get("thread") ?? (isJob ? "plan" : "main");
+  const outline = track?.state.outline;
+  const thread = params.get("thread") ?? (isJob ? "plan" : outline ? partThread(nextPart(track!)) : "main");
+  // Topics and books: pin the page in the address once the overview exists, so reading it doesn't move you on.
+  const pinned = params.get("thread");
+  useEffect(() => {
+    if (track && !isJob && outline && !pinned) setParams({ thread }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track?.id, Boolean(outline), pinned]);
   const step = params.get("step");
   const setThread = (t: string) => {
-    setParams(t === "plan" || t === "main" ? {} : { thread: t });
+    setParams(t === "plan" || (t === "main" && isJob) ? {} : { thread: t });
     window.scrollTo({ top: 0 });
   };
   const setStep = (key: string) => {
@@ -351,7 +425,8 @@ export function TrackPage() {
         <>
           <h1>{track.title}</h1>
           {isJob && <p className="lede small">{track.job!.role.one_liner}</p>}
-          {!isJob && <MapBar track={track} />}
+          {!isJob && !outline && thread === "main" && <MapBar track={track} />}
+          {!isJob && <TopicPath track={track} thread={thread} setThread={setThread} onTrack={onTrack} />}
           {isJob && <JobPath track={track} nav={{ thread, setThread, step, setStep }} />}
           {thread.startsWith("review-") && <p className="badge">🔁 Review</p>}
           {due && (
@@ -372,6 +447,7 @@ export function TrackPage() {
 
       {track &&
         !showPlanList &&
+        (isJob || outline || thread.startsWith("review-")) &&
         (thread === "hunt" || thread === "edge" ? (
           <Thread
             key={`${id}:${thread}`}
@@ -395,7 +471,16 @@ export function TrackPage() {
             autoStart
             listen={me?.prefs.mode === "listen"}
             onTrack={onTrack}
-            quickReplies={thread === "plan" || /^m\d+t\d+[rq]$/.test(thread) ? undefined : QUICK}
+            quickReplies={
+              thread === "plan" || thread === "build" || /^m\d+t\d+[rq]$/.test(thread) || thread.startsWith("review-")
+                ? undefined
+                : isJob
+                  ? QUICK
+                  : undefined // topic and book pages offer their own next steps
+            }
+            images
+            placeholder={isJob ? undefined : "Ask anything, or share a screenshot…"}
+            footer={!isJob && outline ? <PartNext track={track} thread={thread} go={setThread} /> : undefined}
           />
         ))}
     </div>

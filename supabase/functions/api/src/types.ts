@@ -98,6 +98,25 @@ export type CotsiState = {
   reviewStepDays?: number;
   /** Facts the learner shared that later lessons need (device, installed tools, level checks). */
   notes?: string[];
+  /** Topics and books: the overview of core ideas (or chapters), each opened on its own page. */
+  outline?: Outline;
+  /** Pages of the outline that Cotsi has taught (1-based). */
+  partsDone?: number[];
+  /** The optional hands-on project is finished. */
+  projectDone?: boolean;
+};
+
+export type Outline = {
+  kind: "ideas" | "chapters";
+  /** One plain line on where the learner will be by the end. */
+  anchor: string;
+  parts: { title: string; gist: string }[];
+  /** A small hands-on project to put it into practice; empty when there's nothing to build. */
+  project: string;
+  /** For books: the chapter list is grouped or approximate, not the exact table of contents. */
+  approx?: boolean;
+  /** Made from a lesson started before the overview existed; its first page is the "main" thread. */
+  legacy?: boolean;
 };
 
 export type Track = {
@@ -129,6 +148,8 @@ export type StoredMessage = {
   /** App-generated kickoff messages are sent to the model but not shown to the learner. */
   hidden?: boolean;
   sources?: { url: string; title: string }[];
+  /** A picture the learner shared: a small preview to show, and what the image model saw in it. */
+  image?: { thumb: string; desc: string };
 };
 
 export type Env = {
@@ -136,6 +157,8 @@ export type Env = {
   modelLesson: string;
   modelPlan: string;
   modelResearch: string;
+  /** Reads images the learner shares, once, and describes them for the lesson model. */
+  modelVision: string;
   dailyBudgetUsd: number;
   userDailyUsd: number;
   jobAnalysesPerDay: number;

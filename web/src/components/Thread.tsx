@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, stream } from "../api";
 import { choiceUnits, unitAtPoint, unitsFrom } from "../readAloud";
 import { primeSpeech, reader } from "../speech";
@@ -22,7 +22,38 @@ type Props = {
   onTrack?: (track: Track) => void;
   /** Listening mode: read replies aloud, with the side game. */
   listen?: boolean;
+  /** The learner can attach a picture (a screenshot, a photo of notes). */
+  images?: boolean;
+  /** Shown just above the message box (e.g. the way on to the next page). */
+  footer?: ReactNode;
 };
+
+type Picture = { data: string; thumb: string };
+
+const MAX_SIDE = 1568; // the longest side Claude reads at full detail
+
+/** Shrinks a photo or screenshot in the browser: a JPEG to send, and a small preview to keep. */
+async function preparePicture(file: File): Promise<Picture> {
+  if (!file.type.startsWith("image/")) throw new Error("Please choose a photo or screenshot.");
+  if (file.size > 25_000_000) throw new Error("That picture is too large.");
+  const bitmap = await createImageBitmap(file);
+  const draw = (max: number, quality: number) => {
+    const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#fff"; // transparent screenshots stay readable as JPEG
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", quality);
+  };
+  let full = draw(MAX_SIDE, 0.85);
+  if (full.length > 1_900_000) full = draw(1200, 0.75);
+  const thumb = draw(320, 0.7);
+  bitmap.close();
+  return { data: full.slice(full.indexOf(",") + 1), thumb };
+}
 
 const GAME_KEY = "cotsi:game";
 
@@ -93,6 +124,9 @@ export function Thread(props: Props) {
   const readKey = (m: Message) => `${trackId}:${thread}:${m.at}`;
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [draft, setDraft] = useState("");
+  const [picture, setPicture] = useState<Picture | null>(null);
+  const [pictureNote, setPictureNote] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState<ApiError | null>(null);
@@ -121,26 +155,35 @@ export function Thread(props: Props) {
   );
 
   const send = useCallback(
-    async (text: string, restart = false) => {
+    async (text: string, restart = false, pic: Picture | null = null) => {
       setError(null);
       if (listenRef.current) reader.stop();
       setStatus("");
       setStreaming("");
       stick.current = true;
       if (restart) setMessages([]);
-      else if (text) setMessages((m) => [...(m ?? []), { role: "user", text, at: new Date().toISOString() }]);
+      else if (text || pic) {
+        setMessages((m) => [...(m ?? []), { role: "user", text, at: new Date().toISOString(), ...(pic ? { image: { thumb: pic.thumb } } : {}) }]);
+      }
       let reply = "";
       try {
-        await stream(`/tracks/${trackId}/chat`, { thread, message: text || undefined, restart: restart || undefined }, (e) => {
+        const image = pic ? { data: pic.data, thumb: pic.thumb } : undefined;
+        await stream(`/tracks/${trackId}/chat`, { thread, message: text || undefined, restart: restart || undefined, image }, (e) => {
           if (e.t === "text") {
             reply += e.d;
             setStreaming(reply);
           } else if (e.t === "status") {
             setStatus(e.d);
           } else if (e.t === "done") {
-            const done = e as unknown as { track: Track; sources?: Source[] };
+            const done = e as unknown as { track: Track; sources?: Source[]; image?: { thumb: string; desc: string } };
             const msg: Message = { role: "assistant", text: reply, at: new Date().toISOString(), sources: done.sources };
-            setMessages((m) => [...(m ?? []), msg]);
+            setMessages((m) => {
+              const list = [...(m ?? [])];
+              // Keep what Cotsi read from the picture with the learner's message.
+              const mine = list[list.length - 1];
+              if (done.image && mine?.role === "user") list[list.length - 1] = { ...mine, image: done.image };
+              return [...list, msg];
+            });
             onTrack?.(done.track);
             // Read it once it's on screen, so each sentence can be highlighted as it's read.
             if (listenRef.current) pendingRead.current = msg.at;
@@ -149,10 +192,11 @@ export function Thread(props: Props) {
       } catch (err) {
         const apiErr = err instanceof ApiError ? err : new ApiError("Something went wrong. Please try again.", 0);
         setError(apiErr);
-        // Put the learner's message back in the box so nothing they typed is lost.
-        if (text && !restart) {
+        // Put the learner's message back in the box so nothing they typed or attached is lost.
+        if ((text || pic) && !restart) {
           setMessages((m) => (m ?? []).slice(0, -1));
           setDraft(text);
+          if (pic) setPicture(pic);
         }
       } finally {
         setStreaming(null);
@@ -219,9 +263,20 @@ export function Thread(props: Props) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || busy) return;
+    if ((!text && !picture) || busy) return;
     setDraft("");
-    void send(text);
+    setPicture(null);
+    void send(text, false, picture);
+  };
+
+  const attach = async (file: File | undefined) => {
+    setPictureNote("");
+    if (!file) return;
+    try {
+      setPicture(await preparePicture(file));
+    } catch (err) {
+      setPictureNote(err instanceof Error && err.message ? err.message : "Couldn't open that picture.");
+    }
   };
 
   if (messages === null && !error) return <p className="muted center">Loading…</p>;
@@ -279,7 +334,20 @@ export function Thread(props: Props) {
               : undefined
           }
         >
-          {m.role === "assistant" ? <Rich text={m.text} /> : <p>{m.text}</p>}
+          {m.role === "user" && m.image && (
+            <figure className="msg-pic">
+              <img src={m.image.thumb || undefined} alt="Your picture" />
+              {m.image.desc && (
+                <details>
+                  <summary>What Cotsi read from it</summary>
+                  <div className="pic-desc">
+                    <Rich text={m.image.desc} />
+                  </div>
+                </details>
+              )}
+            </figure>
+          )}
+          {m.role === "assistant" ? <Rich text={m.text} /> : m.text ? <p>{m.text}</p> : null}
           {m.role === "assistant" && <Sources sources={m.sources} />}
           {m.role === "assistant" && listen && (
             <button
@@ -326,6 +394,8 @@ export function Thread(props: Props) {
         </button>
       )}
 
+      {!busy && props.footer}
+
       {(!empty || !props.startLabel) && (
         <form className="composer" onSubmit={submit}>
           {listenMode && (
@@ -349,7 +419,45 @@ export function Thread(props: Props) {
               ))}
             </div>
           )}
+          {picture && (
+            <div className="pic-chip">
+              <img src={picture.thumb} alt="" />
+              <span>Picture attached</span>
+              <button type="button" className="link" onClick={() => setPicture(null)} aria-label="Remove the picture">
+                ✕
+              </button>
+            </div>
+          )}
+          {pictureNote && <p className="fine pic-note">{pictureNote}</p>}
           <div className="row">
+            {props.images && (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    void attach(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn ghost attach"
+                  onClick={() => fileInput.current?.click()}
+                  disabled={busy}
+                  aria-label="Add a photo or screenshot"
+                  title="Add a photo or screenshot"
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="5" width="18" height="14" rx="3" />
+                    <circle cx="9" cy="10" r="1.6" />
+                    <path d="m21 16-5-5-8 8" />
+                  </svg>
+                </button>
+              </>
+            )}
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -361,7 +469,7 @@ export function Thread(props: Props) {
               maxLength={6000}
               aria-label="Your message"
             />
-            <button className="btn send" disabled={busy || !draft.trim()} aria-label="Send">
+            <button className="btn send" disabled={busy || (!draft.trim() && !picture)} aria-label="Send">
               ↑
             </button>
           </div>

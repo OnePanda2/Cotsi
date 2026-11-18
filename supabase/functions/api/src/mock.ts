@@ -461,6 +461,140 @@ Keep that going for thirty years and you don't end up with ₹40,000. You end up
 `,
 );
 
+const OUTLINE_TOPIC = {
+  anchor: "By the end, you'll be able to explain why money left alone grows faster every year.",
+  parts: [
+    { title: "Interest earns interest", gist: "Why the money you earn starts earning money too." },
+    { title: "Time beats amount", gist: "Why starting early can beat putting in more." },
+    { title: "The rate is a lever both ways", gist: "How the same maths makes debt grow against you." },
+  ],
+  project: "Build a savings calculator in Google Sheets that shows your money growing year by year.",
+  approx: false,
+};
+
+const OUTLINE_BOOK = {
+  anchor: "By the end, you'll be able to design a habit that actually sticks.",
+  parts: [
+    { title: "The surprising power of atomic habits", gist: "Tiny changes compound into big results." },
+    { title: "How your habits shape your identity", gist: "Lasting change starts with who you believe you are." },
+    { title: "How to build better habits in 4 simple steps", gist: "Cue, craving, response and reward." },
+    { title: "Make it obvious", gist: "Design your surroundings so good habits are easy to start." },
+    { title: "Make it attractive", gist: "Pair habits with things you already want." },
+  ],
+  project: "Design one new habit with the four laws and track it for a week.",
+  approx: false,
+};
+
+const PART_IDEAS = [
+  `This page shows why money left alone grows faster and faster.
+
+### Interest earns interest
+
+Say your bank pays 10% a year, and you put in ₹10,000. After one year you have ₹11,000.
+
+In year two, the bank pays 10% on **₹11,000**, not ₹10,000. So the ₹1,000 you earned starts earning too. That's **compound interest**.
+
+It's like a snowball rolling downhill: the bigger it gets, the more snow it picks up each turn.
+
+\`\`\`cotsi-visual
+${VISUAL}
+\`\`\`
+*Slide the rate and the years. Grey is simple interest, purple is compound. Watch where they split.*
+
+🧠 **Sticky line:** Simple interest adds. Compound interest multiplies.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"What next?","options":["Go deeper","Another example","Show me how to use it","Explain it more simply"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"part_done":true,"cards":[{"q":"Simple vs compound interest in one line?","a":"Simple adds a fixed amount each year; compound multiplies the whole growing balance."}],"next_review_in_days":1}
+\`\`\``,
+  `This page shows why when you start matters more than how much you put in.
+
+### Time beats amount
+
+Money at 8% doubles about every **9 years**. A quick way to work it out: divide 72 by the rate. This is called the **Rule of 72**.
+
+Each doubling is bigger than the last. So ten extra years at the start buy you one more doubling at the end, and that last doubling is the biggest one.
+
+🧠 **Sticky line:** The early years buy the late ones.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"What next?","options":["Go deeper","Another example","Show me how to use it"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"part_done":true,"cards":[{"q":"Rule of 72?","a":"Years to double ≈ 72 ÷ yearly rate (%)."}],"next_review_in_days":1}
+\`\`\``,
+];
+
+const PART_MORE = `Sure. Here's another example.
+
+Asha puts ₹1 lakh away at 22. Ravi puts ₹2 lakh away at 32. Both earn 8%. At 60, Asha has about ₹18.6 lakh and Ravi about ₹17.3 lakh. **Asha wins with half the money**, because her ten extra years bought one more doubling.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"What next?","options":["Go deeper","Show me how to use it"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"part_done":true}
+\`\`\``;
+
+const BOOK_PART = `This chapter is about why tiny habits matter more than big goals.
+
+### The surprising power of atomic habits
+
+Getting **1% better** each day doesn't make you 365% better in a year. It makes you about **37 times** better, because each day builds on the last. The same maths works backwards.
+
+The catch: for weeks, small habits show no visible result. Clear calls this the **plateau of latent potential**. Most people quit right before the curve bends upward.
+
+**What it means for you:** judge a habit by its direction, not this week's result.
+
+🧠 **Sticky line:** Habits are the compound interest of self-improvement.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"What next?","options":["Go deeper","A story from the chapter","Show me how to use it"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"part_done":true,"cards":[{"q":"What is the plateau of latent potential?","a":"The stretch where a habit works but shows no visible result yet, so people quit."}],"next_review_in_days":1}
+\`\`\``;
+
+const BUILD_FIRST = `Let's build a **savings calculator** in Google Sheets. You type in an amount, a rate and a number of years, and it shows your money growing year by year. It turns the ideas from this topic into something you can use for your own money.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"Which project?","options":["Build this one","I have my own idea"]},{"text":"What are you on?","options":["Windows laptop","Mac","Phone only","Chromebook"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"phase":"questions"}
+\`\`\``;
+
+const BUILD_STEP = `Great. **Tools:** just [Google Sheets](https://sheets.google.com), free in your browser. You'll need a Google account.
+
+**Step 1 of 6: open a blank sheet.**
+1. Go to sheets.google.com and sign in.
+2. Click **Blank spreadsheet** (the big plus).
+
+You'll see an empty grid with letters across the top and numbers down the side.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"How did it go?","options":["Done, next step","I see something different","I'm stuck"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"phase":"teaching","notes":["Building in Google Sheets in the browser"]}
+\`\`\``;
+
+const VISION = `A screenshot of a Python error in a code editor.
+
+\`\`\`
+TypeError: can only concatenate str (not "int") to str
+\`\`\`
+
+Line 3 is highlighted: \`print("Total: " + total)\`.`;
+
 function pick(opts: RunOpts): { text: string; sources?: { url: string; title: string }[]; searches?: number } {
   const key = opts.mock ?? "";
   if (key.startsWith("lesson:learn:") && Number(key.split(":")[2]) <= 1 && opts.system.some((b) => b.text.includes("Listening: the app reads"))) {
@@ -471,6 +605,9 @@ function pick(opts: RunOpts): { text: string; sources?: { url: string; title: st
     return { text: Number(key.split(":")[2]) <= 1 ? ASK_SHOWS : showsSaved(opts) };
   }
   if (key === "profile") return { text: JSON.stringify(PROFILE) };
+  if (key === "outline:topic") return { text: JSON.stringify(OUTLINE_TOPIC) };
+  if (key === "outline:book") return { text: JSON.stringify(OUTLINE_BOOK) };
+  if (key === "vision") return { text: VISION };
   if (key === "recommend") return { text: JSON.stringify(RECS) };
   if (key.startsWith("scan:")) {
     return { text: SCAN(key.slice(5)), sources: [{ url: "https://example.com/hiring-report", title: "Sample hiring report" }], searches: 2 };
@@ -487,8 +624,14 @@ function pick(opts: RunOpts): { text: string; sources?: { url: string; title: st
     };
   }
   if (key === "research:edge") return { text: EDGE, searches: 3 };
-  const [, mode, turn] = key.split(":");
+  const [, mode, turn, page] = key.split(":");
   const n = Number(turn);
+  if (mode === "part") {
+    if (n > 1) return { text: PART_MORE };
+    if (opts.system.some((b) => b.text.includes("Mode: Book chapter page"))) return { text: BOOK_PART };
+    return { text: PART_IDEAS[(Number(page) || 1) - 1] ?? PART_IDEAS[1] };
+  }
+  if (mode === "build") return { text: n <= 1 ? BUILD_FIRST : BUILD_STEP };
   if (mode === "plan") return { text: n <= 1 ? PLAN_FIRST : PLAN_ROADMAP };
   if (mode === "topic-learn") return { text: n <= 1 ? TOPIC_LEARN_FIRST : TOPIC_LEARN_DONE };
   if (mode === "topic-revise") return { text: n <= 1 ? TOPIC_REVISE_FIRST : TOPIC_REVISE_RESULT };
