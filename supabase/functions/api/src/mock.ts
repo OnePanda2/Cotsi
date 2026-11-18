@@ -301,15 +301,11 @@ const TOPIC_LEARN_DONE = `✅ Right: one row is one ticket. You've got this topi
 {"topic_done":true}
 \`\`\``;
 
-const TEST_QUESTIONS = `1. In your own words, what does WHERE do in a query?
-2. You want only tickets opened in March. What would your WHERE condition check?
-3. Spot the mistake: \`SELECT * FROM tickets WHERE status = open\`
-4. Two conditions, joined by AND: what happens to a ticket that meets only one?
-5. Your manager asks for "urgent tickets still open". Which two columns would you check?
+const TEST_QUESTIONS = `\`\`\`cotsi-choices
+{"questions":[{"text":"What does WHERE do in a query?","options":["Keeps only the rows that match","Sorts the rows","Joins two tables","Not sure"]},{"text":"You want only tickets opened in March. What does WHERE check?","options":["The ticket's opened date","The ticket's status","The agent's name","Not sure"]},{"text":"What's wrong with: SELECT * FROM tickets WHERE status = open","options":["open needs quotes: 'open'","WHERE must come first","Nothing","Not sure"]},{"text":"With AND, what happens to a ticket that meets only one condition?","options":["It's left out","It's kept","It's counted twice","Not sure"]}]}
+\`\`\``;
 
-Answer all five in one message.`;
-
-const TOPIC_REVISE_FIRST = `Quick run-through first, then 5 questions.
+const TOPIC_REVISE_FIRST = `Quick run-through first, then 4 questions.
 
 **WHERE** keeps only the rows you ask for. \`WHERE status = 'open'\` keeps open tickets and drops the rest. Text goes in quotes. **AND** needs both conditions true; **OR** needs either.
 
@@ -321,34 +317,30 @@ ${TEST_QUESTIONS}
 {"phase":"teaching"}
 \`\`\``;
 
-const TOPIC_REVISE_RESULT = `1 ✅ 2 ✅ 3 ✅ (the text needs quotes) 4 ✅ 5 ✅
+const TOPIC_REVISE_RESULT = `1 ✅ 2 ✅ 3 ✅ (the text needs quotes) 4 ✅
 
-**5 of 5. Passed.** "Joining two tables" is now open.
+**4 of 4. Passed.** "Joining two tables" is now open.
 
 \`\`\`cotsi-state
-{"test_result":{"score":5,"of":5}}
+{"test_result":{"score":4,"of":4}}
 \`\`\``;
 
-const TOPIC_KNOW_FIRST = `Here's the test: 5 questions, and 4 right passes. No hints, but you can switch to Learn any time.
+const TOPIC_KNOW_FIRST = `Here's the test: 4 questions, and 3 right passes. No hints, but you can switch to Learn any time.
 
-1. In your own words, what does a JOIN do?
-2. Tickets have an agent_id. Agents have an id and a name. What do you join on?
-3. Spot the mistake: \`SELECT * FROM tickets JOIN agents\`
-4. What happens to a ticket whose agent_id isn't in the agents table, with an inner join?
-5. You want each ticket with its agent's name. Which table do you start from?
-
-Answer all five in one message.
+\`\`\`cotsi-choices
+{"questions":[{"text":"What does a JOIN do?","options":["Puts matching rows from two tables together","Deletes duplicate rows","Sorts a table","Not sure"]},{"text":"Tickets have an agent_id; agents have an id. What do you join on?","options":["tickets.agent_id = agents.id","tickets.id = agents.id","agent names","Not sure"]},{"text":"What's missing from: SELECT * FROM tickets JOIN agents","options":["An ON condition","A WHERE clause","Quotes","Not sure"]},{"text":"With an inner join, a ticket whose agent_id isn't in agents is…","options":["Left out","Kept with empty agent details","Counted twice","Not sure"]}]}
+\`\`\`
 
 \`\`\`cotsi-state
 {"phase":"teaching"}
 \`\`\``;
 
-const TOPIC_KNOW_RESULT = `1 ✅ 2 ✅ 3 ❌ (it needs ON tickets.agent_id = agents.id) 4 ❌ (it's dropped) 5 ✅
+const TOPIC_KNOW_RESULT = `1 ✅ 2 ❌ (join on tickets.agent_id = agents.id) 3 ❌ (it needs an ON condition) 4 ✅
 
-**3 of 5.** Close, but not yet a pass. Let's learn this topic properly: tap **Learn** and it takes about 15 minutes.
+**2 of 4.** Close, but not yet a pass. Let's learn this topic properly: tap **Learn** and it takes about 15 minutes.
 
 \`\`\`cotsi-state
-{"test_result":{"score":3,"of":5}}
+{"test_result":{"score":2,"of":4}}
 \`\`\``;
 
 function milestoneText(n: number, done: boolean): string {

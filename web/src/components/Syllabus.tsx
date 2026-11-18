@@ -170,11 +170,11 @@ export function StepCard({ track, step, go }: { track: Track; step: StepStatus; 
             </button>
             <button className="way" onClick={() => go(topicThread(step.n, k, "revise"))}>
               <b>🔁 Revise</b>
-              <small>A quick run-through, then a 5-question test.</small>
+              <small>A quick run-through, then a 4-question test.</small>
             </button>
             <button className="way" onClick={() => go(topicThread(step.n, k, "know"))}>
               <b>✅ I already know this</b>
-              <small>Straight to the test. 4 of 5 right to pass.</small>
+              <small>Straight to the test. 3 of 4 right to pass.</small>
             </button>
           </div>
           <p className="fine">If you don't pass the test, you'll learn the topic before moving on.</p>

@@ -604,8 +604,8 @@ function cleanNotes(raw: unknown[]): string[] {
     .slice(-8);
 }
 
-/** Pass mark for "Revise" and "I already know this": 4 of 5 (80%). */
-const PASS_SHARE = 0.8;
+/** Pass mark for "Revise" and "I already know this": 3 of 4 (75%). */
+const PASS_SHARE = 0.75;
 
 /** A topic is done by learning it, or by passing its test; a failed test means Learn comes next. */
 function applyTopicResult(track: Track, raw: Record<string, unknown>, at: Date, topic?: { n: number; k: number; variant: Variant }) {
