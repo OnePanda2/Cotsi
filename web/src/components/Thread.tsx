@@ -1,9 +1,10 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, stream } from "../api";
-import { primeSpeech, reader, speechFor } from "../speech";
+import { choiceUnits, unitAtPoint, unitsFrom } from "../readAloud";
+import { primeSpeech, reader } from "../speech";
 import { getItem, setItem } from "../storage";
 import type { Message, Source, Track } from "../types";
-import { LaneRunner } from "./LaneRunner";
+import { GamePanel } from "../games/GamePanel";
 import { type ChoiceQuestion, choicesOf, Rich } from "./Rich";
 import { ListenBar, useReader, useVoicesOn } from "./Voice";
 
@@ -102,6 +103,22 @@ export function Thread(props: Props) {
 
   const listenRef = useRef(listen);
   listenRef.current = listen;
+  const threadEl = useRef<HTMLDivElement>(null);
+  const pendingRead = useRef<string | null>(null);
+
+  /** Reads a reply aloud from the start, or from the sentence at a tapped point. */
+  const readMessage = useCallback(
+    (m: Message, isLast: boolean, at?: { x: number; y: number }) => {
+      const el = threadEl.current?.querySelector(`article[data-at="${CSS.escape(m.at)}"]`);
+      if (!el) return;
+      const units = unitsFrom(el);
+      if (isLast) units.push(...choiceUnits(choicesOf(m.text), threadEl.current?.querySelector(".choices") ?? null));
+      const start = at ? unitAtPoint(units, at.x, at.y) : 0;
+      if (start < 0) return;
+      reader.read(units, `${trackId}:${thread}:${m.at}`, start);
+    },
+    [trackId, thread],
+  );
 
   const send = useCallback(
     async (text: string, restart = false) => {
@@ -125,7 +142,8 @@ export function Thread(props: Props) {
             const msg: Message = { role: "assistant", text: reply, at: new Date().toISOString(), sources: done.sources };
             setMessages((m) => [...(m ?? []), msg]);
             onTrack?.(done.track);
-            if (listenRef.current) void reader.read(speechFor(reply), `${trackId}:${thread}:${msg.at}`);
+            // Read it once it's on screen, so each sentence can be highlighted as it's read.
+            if (listenRef.current) pendingRead.current = msg.at;
           }
         });
       } catch (err) {
@@ -170,6 +188,15 @@ export function Thread(props: Props) {
     if (stick.current) bottom.current?.scrollIntoView({ block: "end" });
   }, [messages, streaming]);
 
+  useEffect(() => {
+    const at = pendingRead.current;
+    if (!at || !messages) return;
+    const i = messages.findIndex((m) => m.at === at);
+    if (i < 0) return;
+    pendingRead.current = null;
+    requestAnimationFrame(() => readMessage(messages[i], i === messages.length - 1));
+  }, [messages, readMessage]);
+
   // Leaving the lesson stops the reading.
   useEffect(() => () => reader.stop(), [trackId, thread]);
 
@@ -208,17 +235,24 @@ export function Thread(props: Props) {
     error?.code === "site_full" || error?.code === "user_limit" || error?.code === "not_ready" || error?.code === "members_only" || error?.code === "terms" || error?.code === "locked";
 
   const lastReply = [...list].reverse().find((m) => m.role === "assistant");
-  const readLast = () => lastReply && void reader.read(speechFor(lastReply.text), readKey(lastReply));
+  const readLast = () => lastReply && readMessage(lastReply, lastReply === last);
   // The game runs while Cotsi writes or reads, and waits while it's the learner's turn.
   // Without read-aloud the learner reads at their own pace, so the game simply keeps going.
   const running = !listen || busy || speech.status === "speaking" || speech.status === "loading";
   const waitingNote = speech.status === "paused" ? "Reading is paused. Press ▶ to carry on." : "Your turn: answer Cotsi to keep running.";
 
   return (
-    <div className="thread" onPointerDownCapture={listen ? primeSpeech : undefined}>
+    <div className="thread" ref={threadEl} onPointerDownCapture={listen ? primeSpeech : undefined}>
       {showGame && (
-        <div className="runner-dock">
-          <LaneRunner running={running} waitingNote={waitingNote} />
+        <div className="game-dock">
+          <GamePanel
+            running={running}
+            waitingNote={waitingNote}
+            onHide={() => {
+              setItem("local", GAME_KEY, "off");
+              setGame(false);
+            }}
+          />
         </div>
       )}
       {empty && props.startLabel && (
@@ -231,14 +265,27 @@ export function Thread(props: Props) {
       )}
 
       {list.map((m, i) => (
-        <article key={i} className={`msg ${m.role}`}>
+        <article
+          key={i}
+          data-at={m.at}
+          className={`msg ${m.role}${listen && m.role === "assistant" ? " tap-to-read" : ""}`}
+          onClick={
+            listen && m.role === "assistant"
+              ? (e) => {
+                  if ((e.target as Element).closest("a, button, input, textarea, iframe, summary, pre")) return;
+                  if (window.getSelection()?.toString()) return;
+                  readMessage(m, i === list.length - 1, { x: e.clientX, y: e.clientY });
+                }
+              : undefined
+          }
+        >
           {m.role === "assistant" ? <Rich text={m.text} /> : <p>{m.text}</p>}
           {m.role === "assistant" && <Sources sources={m.sources} />}
           {m.role === "assistant" && listen && (
             <button
               type="button"
               className="link read-this"
-              onClick={() => (speech.key === readKey(m) ? reader.stop() : void reader.read(speechFor(m.text), readKey(m)))}
+              onClick={() => (speech.key === readKey(m) ? reader.stop() : readMessage(m, i === list.length - 1))}
             >
               {speech.key === readKey(m) ? "■ Stop reading" : "🔊 Read this aloud"}
             </button>

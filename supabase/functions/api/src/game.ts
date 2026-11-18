@@ -4,8 +4,17 @@
 
 import { addDays, localDay } from "./engage.ts";
 
-/** Sparks appear at most about once every 0.65 s, so a run can't beat this rate. */
-export const MAX_SPARKS_PER_SECOND = 1.6;
+/** The side games. Each has its own bests and leaderboards. */
+export const GAMES = ["runner", "orbit", "comet", "bubbles"] as const;
+export type GameId = (typeof GAMES)[number];
+
+export function isGame(id: unknown): id is GameId {
+  return GAMES.includes(id as GameId);
+}
+
+/** The fastest anyone can score in each game (points per second), with room to spare. */
+export const MAX_RATE: Record<GameId, number> = { runner: 1.6, orbit: 1.6, comet: 3, bubbles: 3 };
+export const MAX_SPARKS_PER_SECOND = MAX_RATE.runner;
 const BOARD_SIZE = 50;
 export const SHOWN = 10;
 
@@ -30,10 +39,20 @@ export function weekStart(at: Date): string {
 }
 
 /** A run is believable if it's a whole number and no faster than sparks can appear. */
-export function plausibleRun(score: unknown, ms: unknown): score is number {
+export function plausibleRun(score: unknown, ms: unknown, game: GameId = "runner"): score is number {
   if (typeof score !== "number" || !Number.isInteger(score) || score < 1 || score > 20000) return false;
   if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0 || ms > 6 * 3600_000) return false;
-  return score <= Math.floor((ms / 1000) * MAX_SPARKS_PER_SECOND) + 3;
+  return score <= Math.floor((ms / 1000) * MAX_RATE[game]) + 3;
+}
+
+/** Where each game's data lives. The runner keeps the keys it had before there were other games. */
+export function gameKeys(game: GameId) {
+  const p = game === "runner" ? "" : `${game}:`;
+  return {
+    stats: game === "runner" ? "game" : `game:${game}`,
+    all: `board:${p}all`,
+    week: (start: string) => `board:${p}week:${start}`,
+  };
 }
 
 /** Records a run. Returns the new stats and which bests it beat. */

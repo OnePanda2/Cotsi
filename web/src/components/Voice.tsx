@@ -107,7 +107,7 @@ export function VoicePicker({
   );
 }
 
-/** Play / pause for whatever Cotsi is reading, shown above the message box in listening mode. */
+/** Play / pause, back and forward for whatever Cotsi is reading, above the message box. */
 export function ListenBar({
   voicesOn,
   onReadLast,
@@ -123,27 +123,41 @@ export function ListenBar({
 }) {
   const s = useReader();
   const speaking = s.status === "speaking";
+  const active = voicesOn && s.status !== "idle" && !s.key?.startsWith("preview:");
   return (
     <div className="listen-bar" role="group" aria-label="Read aloud">
       {!voicesOn ? (
         <span className="listen-soon">🎧 Natural voices coming soon</span>
-      ) : s.status === "idle" ? (
+      ) : !active ? (
         <button type="button" className="listen-main" onClick={onReadLast} disabled={!canReadLast}>
           🔊 <span>{s.error ? "Try reading again" : "Read the last reply"}</span>
         </button>
-      ) : s.status === "loading" ? (
-        <button type="button" className="listen-main" onClick={() => reader.stop()}>
-          … <span>Getting the voice ready</span>
-        </button>
       ) : (
-        <button type="button" className="listen-main" onClick={() => (speaking ? reader.pause() : reader.resume())}>
-          {speaking ? "⏸" : "▶"} <span>{speaking ? "Reading aloud…" : "Paused"}</span>
-        </button>
-      )}
-      {voicesOn && s.status !== "idle" && (
-        <button type="button" className="listen-stop" onClick={() => reader.stop()} aria-label="Stop reading">
-          ■
-        </button>
+        <div className="listen-controls">
+          <button type="button" className="listen-ctl" onClick={() => reader.prev()} aria-label="Back one sentence" title="Back one sentence">
+            ⏮
+          </button>
+          <button
+            type="button"
+            className="listen-ctl main"
+            onClick={() => (speaking ? reader.pause() : reader.resume())}
+            disabled={s.status === "loading"}
+            aria-label={speaking ? "Pause" : "Play"}
+          >
+            {s.status === "loading" ? "…" : speaking ? "⏸" : "▶"}
+          </button>
+          <button type="button" className="listen-ctl" onClick={() => reader.next()} aria-label="Next sentence" title="Next sentence">
+            ⏭
+          </button>
+          <button type="button" className="listen-ctl" onClick={() => reader.stop()} aria-label="Stop reading" title="Stop">
+            ■
+          </button>
+          {s.total ? (
+            <span className="listen-pos">
+              {(s.index ?? 0) + 1} / {s.total}
+            </span>
+          ) : null}
+        </div>
       )}
       {onGame && (
         <button type="button" className={`listen-game${game ? " on" : ""}`} onClick={onGame} aria-pressed={game}>
@@ -151,6 +165,7 @@ export function ListenBar({
         </button>
       )}
       {voicesOn && s.error && <span className="listen-error">{s.error}</span>}
+      {voicesOn && active && <span className="listen-tip">Tip: tap any sentence to hear it from there.</span>}
     </div>
   );
 }

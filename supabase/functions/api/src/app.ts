@@ -36,7 +36,20 @@ import {
 } from "./engage.ts";
 import type { Store } from "./store.ts";
 import { cleanTtsText, DEFAULT_VOICE, isVoice, PREVIEW_TEXT, SPEEDS, synthesize, type TtsConfig, ttsCost, VOICES } from "./tts.ts";
-import { type BoardEntry, boardName, boardView, type GameStats, placeOnBoard, plausibleRun, recordRun, removeFromBoard, weekStart } from "./game.ts";
+import {
+  type BoardEntry,
+  boardName,
+  boardView,
+  gameKeys,
+  GAMES,
+  type GameStats,
+  isGame,
+  placeOnBoard,
+  plausibleRun,
+  recordRun,
+  removeFromBoard,
+  weekStart,
+} from "./game.ts";
 import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, topicKey } from "./syllabus.ts";
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
 import type {
@@ -334,7 +347,7 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
   if (m === "GET" && path === "/tts/voices") return Promise.resolve(getVoices(user, deps));
   if (m === "GET" && path === "/tts/preview") return getPreview(url, user, deps);
   if (m === "POST" && path === "/tts") return postTts(req, user, deps);
-  if (m === "GET" && path === "/game/board") return getBoard(user, deps);
+  if (m === "GET" && path === "/game/board") return getBoard(url, user, deps);
   if (m === "PUT" && path === "/dream") return putDream(req, user, deps);
   if (m === "PUT" && path === "/terms") return putTerms(req, user, deps);
   if (m === "GET" && path === "/push/key") return json({ key: (await vapidKeys(deps)).publicKey });
@@ -812,9 +825,6 @@ async function postTts(req: Request, user: User, deps: Deps): Promise<Response> 
 
 // ------------------------------------------------------------------ game: high scores and leaderboards
 
-const ALL_BOARD = "board:all";
-const weekBoard = (start: string) => `board:week:${start}`;
-
 // Boards are small lists in one row each. Two runs finishing in the same instant could race, which
 // at worst drops one board update; the learner's own best is stored separately and kept.
 async function updateBoard(deps: Deps, key: string, change: (b: BoardEntry[]) => BoardEntry[]): Promise<void> {
@@ -824,56 +834,73 @@ async function updateBoard(deps: Deps, key: string, change: (b: BoardEntry[]) =>
 
 async function removeFromBoards(deps: Deps, uid: string): Promise<void> {
   const start = weekStart(now(deps));
-  for (const key of [ALL_BOARD, weekBoard(start), weekBoard(addDays(start, -7))]) {
-    await updateBoard(deps, key, (b) => removeFromBoard(b, uid));
+  for (const game of GAMES) {
+    const k = gameKeys(game);
+    for (const key of [k.all, k.week(start), k.week(addDays(start, -7))]) {
+      await updateBoard(deps, key, (b) => removeFromBoard(b, uid));
+    }
   }
 }
 
 /** Adds (or removes) the learner's current bests when they switch the leaderboard on (or off). */
 async function syncBoards(deps: Deps, user: User, rec: UserRecord, shown: boolean): Promise<void> {
   if (!shown) return removeFromBoards(deps, user.id);
-  const stats = await deps.store.get<GameStats>(user.id, "game");
   const at = now(deps);
   const name = boardName(rec.name);
-  if (stats?.best) await updateBoard(deps, ALL_BOARD, (b) => placeOnBoard(b, { uid: user.id, name, score: stats.best, at: stats.bestAt ?? at.toISOString() }));
-  if (stats?.week && stats.week.start === weekStart(at) && stats.week.best) {
-    await updateBoard(deps, weekBoard(stats.week.start), (b) => placeOnBoard(b, { uid: user.id, name, score: stats.week!.best, at: at.toISOString() }));
+  for (const game of GAMES) {
+    const k = gameKeys(game);
+    const stats = await deps.store.get<GameStats>(user.id, k.stats);
+    if (stats?.best) await updateBoard(deps, k.all, (b) => placeOnBoard(b, { uid: user.id, name, score: stats.best, at: stats.bestAt ?? at.toISOString() }));
+    if (stats?.week && stats.week.start === weekStart(at) && stats.week.best) {
+      await updateBoard(deps, k.week(stats.week.start), (b) => placeOnBoard(b, { uid: user.id, name, score: stats.week!.best, at: at.toISOString() }));
+    }
   }
 }
 
+function gameOf(value: unknown): (typeof GAMES)[number] {
+  if (value === undefined || value === null || value === "") return "runner";
+  if (!isGame(value)) throw new HttpError(400, "Unknown game.", "bad_game");
+  return value;
+}
+
 async function postRun(req: Request, user: User, deps: Deps): Promise<Response> {
-  const input = await body<{ score?: unknown; ms?: unknown }>(req);
-  if (!plausibleRun(input.score, input.ms)) throw new HttpError(400, "That run couldn't be saved.", "bad_run");
+  const input = await body<{ score?: unknown; ms?: unknown; game?: unknown }>(req);
+  const game = gameOf(input.game);
+  if (!plausibleRun(input.score, input.ms, game)) throw new HttpError(400, "That run couldn't be saved.", "bad_run");
+  const k = gameKeys(game);
   const at = now(deps);
-  const [rec, stats] = await Promise.all([loadUser(deps, user), deps.store.get<GameStats>(user.id, "game")]);
+  const [rec, stats] = await Promise.all([loadUser(deps, user), deps.store.get<GameStats>(user.id, k.stats)]);
   const result = recordRun(stats, input.score, at);
-  if (result.allTime || result.week) await deps.store.put(user.id, "game", result.stats);
+  if (result.allTime || result.week) await deps.store.put(user.id, k.stats, result.stats);
   if (rec.prefs.board !== false) {
     const entry = { uid: user.id, name: boardName(rec.name), score: input.score, at: at.toISOString() };
-    if (result.allTime) await updateBoard(deps, ALL_BOARD, (b) => placeOnBoard(b, entry));
+    if (result.allTime) await updateBoard(deps, k.all, (b) => placeOnBoard(b, entry));
     if (result.week) {
       const start = result.stats.week!.start;
-      const existing = await deps.store.get<BoardEntry[]>(GLOBAL_USER, weekBoard(start));
+      const existing = await deps.store.get<BoardEntry[]>(GLOBAL_USER, k.week(start));
       // A new week's board starts: drop the one from two weeks ago, which nobody sees any more.
-      if (!existing) await deps.store.del(GLOBAL_USER, weekBoard(addDays(start, -14)));
-      await updateBoard(deps, weekBoard(start), (b) => placeOnBoard(b, entry));
+      if (!existing) await deps.store.del(GLOBAL_USER, k.week(addDays(start, -14)));
+      await updateBoard(deps, k.week(start), (b) => placeOnBoard(b, entry));
     }
   }
   return json({ best: result.stats.best, weekBest: result.stats.week?.best ?? 0, newBest: result.allTime });
 }
 
-async function getBoard(user: User, deps: Deps): Promise<Response> {
+async function getBoard(url: URL, user: User, deps: Deps): Promise<Response> {
+  const game = gameOf(url.searchParams.get("game"));
+  const k = gameKeys(game);
   const at = now(deps);
   const start = weekStart(at);
   const [rec, stats, all, week] = await Promise.all([
     loadUser(deps, user),
-    deps.store.get<GameStats>(user.id, "game"),
-    deps.store.get<BoardEntry[]>(GLOBAL_USER, ALL_BOARD),
-    deps.store.get<BoardEntry[]>(GLOBAL_USER, weekBoard(start)),
+    deps.store.get<GameStats>(user.id, k.stats),
+    deps.store.get<BoardEntry[]>(GLOBAL_USER, k.all),
+    deps.store.get<BoardEntry[]>(GLOBAL_USER, k.week(start)),
   ]);
   const weekView = boardView(week ?? [], user.id);
   const allView = boardView(all ?? [], user.id);
   return json({
+    game,
     week: { starts: start, rows: weekView.rows },
     all: { rows: allView.rows },
     me: {

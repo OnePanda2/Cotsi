@@ -191,6 +191,14 @@ Deno.test("game: personal bests, weekly and all-time leaderboards, opting out", 
   b = await call("GET", "/game/board");
   assert(b.json.me.allRank === 2 && b.json.me.weekRank === 1, "shown again");
 
+  // Each game has its own board; the runner's existing scores stay where they were.
+  await call("POST", "/game/run", { score: 40, ms: 60_000, game: "comet" });
+  const comet = await call("GET", "/game/board?game=comet");
+  assert(comet.json.all.rows.length === 1 && comet.json.all.rows[0].score === 40 && comet.json.me.best === 40, "comet board");
+  assert((await call("GET", "/game/board")).json.me.best === 12, "runner board unchanged");
+  assert((await call("POST", "/game/run", { score: 200, ms: 60_000, game: "orbit" })).status === 400, "orbit can't score that fast");
+  assert((await call("POST", "/game/run", { score: 3, ms: 60_000, game: "chess" })).status === 400, "unknown game");
+
   // Deleting the account removes the learner from the boards.
   await call("DELETE", "/me", undefined, "dev:arjun");
   b = await call("GET", "/game/board");

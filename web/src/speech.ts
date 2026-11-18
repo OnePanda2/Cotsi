@@ -4,6 +4,7 @@
 
 import { apiAudio, ApiError } from "./api";
 import { parseReply } from "./components/Rich";
+import { highlight, keepInView, type Unit } from "./readAloud";
 
 export type VoiceGroup = "en-IN" | "en-US";
 export type Voice = { id: string; name: string; gender: string; group: VoiceGroup };
@@ -94,22 +95,33 @@ export function chunks(text: string, first = 260, max = 900): string[] {
 
 // ------------------------------------------------------------------ the reader
 
-export type ReaderState = { status: "idle" | "loading" | "speaking" | "paused"; key: string | null; error?: string };
+export type ReaderState = {
+  status: "idle" | "loading" | "speaking" | "paused";
+  key: string | null;
+  error?: string;
+  /** Which sentence is being read, and how many there are. */
+  index?: number;
+  total?: number;
+};
 type Listener = (s: ReaderState) => void;
 
 // A short silent clip. Phones only allow audio that starts from a tap, so the first tap plays this
 // on the same audio element, which then may play lesson audio later on its own.
-const SILENCE =
-  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
 
+/**
+ * Reads a reply one sentence at a time, highlighting each sentence (and roughly each word) as it
+ * goes. The learner can pause, go back a sentence, skip ahead, or tap any sentence to start there.
+ */
 class Reader {
   private audio: HTMLAudioElement | null = null;
-  private parts: string[] = [];
+  private units: Unit[] = [];
   private index = 0;
   private gen = 0;
   private listeners = new Set<Listener>();
-  private cache = new Map<string, string>(); // voice|rate|text -> object URL
+  private cache = new Map<string, Promise<string>>(); // voice|rate|text -> object URL
   private ended: (() => void) | null = null;
+  private raf = 0;
   state: ReaderState = { status: "idle", key: null };
   voice = DEFAULT_VOICE;
   rate = 1;
@@ -140,34 +152,48 @@ class Reader {
     void a.play().catch(() => {});
   }
 
-  private remember(key: string, url: string) {
-    this.cache.set(key, url);
-    if (this.cache.size > 60) {
-      const [oldest, old] = this.cache.entries().next().value as [string, string];
-      this.cache.delete(oldest);
-      URL.revokeObjectURL(old);
-    }
-  }
-
-  private async audioFor(text: string): Promise<string> {
-    const key = `${this.voice}|${this.rate}|${text}`;
+  private audioFor(text: string, path = "/tts", method = "POST"): Promise<string> {
+    const key = `${this.voice}|${this.rate}|${path}|${text}`;
     const hit = this.cache.get(key);
     if (hit) return hit;
-    const blob = await apiAudio("POST", "/tts", { text, voice: this.voice, rate: this.rate });
-    const url = URL.createObjectURL(blob);
-    this.remember(key, url);
-    return url;
+    const p = (method === "POST" ? apiAudio("POST", path, { text, voice: this.voice, rate: this.rate }) : apiAudio("GET", path)).then((b) =>
+      URL.createObjectURL(b),
+    );
+    p.catch(() => this.cache.delete(key));
+    this.cache.set(key, p);
+    if (this.cache.size > 80) this.cache.delete(this.cache.keys().next().value as string);
+    return p;
   }
 
-  /** Reads text aloud from the start. `key` names what is being read (e.g. a message). */
-  async read(text: string, key: string) {
+  /** Reads the sentences from `start`. `key` names what is being read (e.g. a message). */
+  read(units: Unit[], key: string, start = 0) {
     this.stop();
-    this.parts = chunks(text);
-    this.index = 0;
-    if (!this.parts.length) return;
-    const gen = ++this.gen;
+    this.units = units.filter((u) => u.text);
+    if (!this.units.length) return;
+    this.index = Math.max(0, Math.min(start, this.units.length - 1));
     this.set({ status: "loading", key });
-    await this.play(gen, key);
+    void this.playFrom(++this.gen);
+  }
+
+  /** Back one sentence (or to the start of this one, if it has been playing a while). */
+  prev() {
+    if (!this.units.length) return;
+    const into = this.audio && !this.audio.paused ? this.audio.currentTime : 0;
+    this.jumpTo(into > 1.5 ? this.index : this.index - 1);
+  }
+
+  next() {
+    if (!this.units.length) return;
+    if (this.index + 1 >= this.units.length) return this.stop();
+    this.jumpTo(this.index + 1);
+  }
+
+  jumpTo(i: number) {
+    if (!this.units.length) return;
+    this.halt();
+    this.index = Math.max(0, Math.min(i, this.units.length - 1));
+    this.set({ ...this.state, status: "loading" });
+    void this.playFrom(++this.gen);
   }
 
   /** Plays the fixed sample for a voice (made once on the server and shared). */
@@ -177,41 +203,88 @@ class Reader {
     const key = `preview:${voice}`;
     this.set({ status: "loading", key });
     try {
-      const cacheKey = `preview|${voice}|${rate}`;
-      let url = this.cache.get(cacheKey);
-      if (!url) {
-        url = URL.createObjectURL(await apiAudio("GET", `/tts/preview?voice=${encodeURIComponent(voice)}&rate=${rate}`));
-        this.remember(cacheKey, url);
-      }
+      const prevVoice = this.voice;
+      const prevRate = this.rate;
+      this.voice = voice;
+      this.rate = rate;
+      const url = this.audioFor("", `/tts/preview?voice=${encodeURIComponent(voice)}&rate=${rate}`, "GET");
+      this.voice = prevVoice;
+      this.rate = prevRate;
+      const src = await url;
       if (gen !== this.gen) return;
       this.set({ status: "speaking", key });
-      await this.playUrl(url);
+      await this.playUrl(src);
       if (gen === this.gen) this.set({ status: "idle", key: null });
     } catch (err) {
       if (gen === this.gen) this.fail(err);
     }
   }
 
-  private async play(gen: number, key: string) {
+  private async playFrom(gen: number) {
+    const key = this.state.key;
     try {
-      let next: Promise<string> | null = this.audioFor(this.parts[this.index]);
-      while (gen === this.gen && this.index < this.parts.length) {
-        const url = await next!;
-        // Fetch the next piece while this one plays, so there's no gap between them.
-        next = this.index + 1 < this.parts.length ? this.audioFor(this.parts[this.index + 1]) : null;
+      while (gen === this.gen && this.index < this.units.length) {
+        const i = this.index;
+        const url = await this.audioFor(this.units[i].text);
+        // Fetch the next sentences while this one plays, so there are no gaps.
+        for (const j of [i + 1, i + 2]) if (j < this.units.length) this.audioFor(this.units[j].text).catch(() => {});
         if (gen !== this.gen) return;
-        if (this.state.status !== "paused") this.set({ status: "speaking", key });
-        await this.playUrl(url);
+        const paused = this.state.status === "paused";
+        this.set({ status: paused ? "paused" : "speaking", key, index: i, total: this.units.length });
+        this.track(i, gen);
+        await this.playUrl(url, paused);
         if (gen !== this.gen) return;
-        this.index++;
+        this.index = i + 1;
       }
-      if (gen === this.gen) this.set({ status: "idle", key: null });
+      if (gen === this.gen) this.finish();
     } catch (err) {
       if (gen === this.gen) this.fail(err);
     }
+  }
+
+  /** Highlights the sentence, and moves the word highlight along as the audio plays. */
+  private track(i: number, gen: number) {
+    cancelAnimationFrame(this.raf);
+    const unit = this.units[i];
+    highlight(unit.range, null);
+    keepInView(unit.range);
+    const total = unit.words.reduce((n, w) => n + w.weight, 0);
+    let shown = -1;
+    const tick = () => {
+      if (gen !== this.gen || this.index !== i) return;
+      const a = this.audio;
+      if (a && unit.words.length && a.duration && Number.isFinite(a.duration)) {
+        // The voice gives no word timings, so estimate from how far through the audio we are.
+        const at = (a.currentTime / a.duration) * total;
+        let sum = 0;
+        let w = unit.words.length - 1;
+        for (let k = 0; k < unit.words.length; k++) {
+          sum += unit.words[k].weight;
+          if (sum >= at) {
+            w = k;
+            break;
+          }
+        }
+        if (w !== shown) {
+          shown = w;
+          highlight(unit.range, unit.words[w].range);
+        }
+      }
+      this.raf = requestAnimationFrame(tick);
+    };
+    this.raf = requestAnimationFrame(tick);
+  }
+
+  private finish() {
+    cancelAnimationFrame(this.raf);
+    highlight(null, null);
+    this.units = [];
+    this.set({ status: "idle", key: null });
   }
 
   private fail(err: unknown) {
+    cancelAnimationFrame(this.raf);
+    highlight(null, null);
     const message =
       err instanceof ApiError
         ? err.code === "user_limit" || err.code === "site_full"
@@ -221,7 +294,7 @@ class Reader {
     this.set({ status: "idle", key: null, error: message });
   }
 
-  private playUrl(url: string): Promise<void> {
+  private playUrl(url: string, startPaused = false): Promise<void> {
     const a = this.el();
     return new Promise((resolve, reject) => {
       const done = () => {
@@ -239,9 +312,10 @@ class Reader {
         reject(new Error("audio error"));
       };
       a.src = url;
+      if (startPaused) return;
       a.play().catch((e) => {
         // Blocked until the learner taps: wait paused instead of failing.
-        if ((e as Error)?.name === "NotAllowedError") this.set({ status: "paused", key: this.state.key });
+        if ((e as Error)?.name === "NotAllowedError") this.set({ ...this.state, status: "paused" });
         else reject(e);
       });
     });
@@ -250,23 +324,30 @@ class Reader {
   pause() {
     if (this.state.status !== "speaking") return;
     this.audio?.pause();
-    this.set({ status: "paused", key: this.state.key });
+    this.set({ ...this.state, status: "paused" });
   }
 
   resume() {
     if (this.state.status !== "paused") return;
-    this.set({ status: "speaking", key: this.state.key });
-    void this.audio?.play().catch(() => this.set({ status: "paused", key: this.state.key }));
+    this.set({ ...this.state, status: "speaking" });
+    void this.audio?.play().catch(() => this.set({ ...this.state, status: "paused" }));
   }
 
-  stop() {
+  /** Stops the audio without forgetting where we are (used when jumping). */
+  private halt() {
     this.gen++;
+    cancelAnimationFrame(this.raf);
     if (this.audio) {
       this.audio.pause();
       this.audio.removeAttribute("src");
     }
     this.ended?.();
-    this.parts = [];
+  }
+
+  stop() {
+    this.halt();
+    this.units = [];
+    highlight(null, null);
     if (this.state.status !== "idle" || this.state.error) this.set({ status: "idle", key: null });
   }
 }

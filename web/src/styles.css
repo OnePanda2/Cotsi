@@ -2354,19 +2354,19 @@ fieldset:disabled .option {
   color: #c8f5d8;
 }
 
-/* Wide screens: the syllabus stays open on the right. */
+/* Wide screens: the syllabus stays open on the right (unless the game has that side). */
 @media (min-width: 1400px) {
-  .has-syllabus .app {
+  body.has-syllabus:not(.has-game) .app {
     padding-right: 320px;
   }
-  .syllabus {
+  body:not(.has-game) .syllabus {
     width: 320px;
     transform: none;
     box-shadow: none;
   }
-  .syl-close,
-  .syl-open,
-  .syl-scrim.on {
+  body:not(.has-game) .syl-close,
+  body:not(.has-game) .syl-open,
+  body:not(.has-game) .syl-scrim.on {
     display: none;
   }
 }
@@ -2599,138 +2599,7 @@ fieldset:disabled .option {
   text-decoration: none;
 }
 
-/* ---------- the side game ---------- */
-
-.runner-dock {
-  position: sticky;
-  top: 8px;
-  z-index: 6;
-  margin-bottom: 4px;
-}
-
-.runner {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas: "stage head" "stage help";
-  gap: 4px 14px;
-  align-items: start;
-  padding: 10px;
-  border: 1px solid rgba(124, 106, 247, 0.45);
-  border-radius: var(--radius);
-  background: rgba(17, 15, 24, 0.94);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(6px);
-}
-
-.runner-head {
-  grid-area: head;
-  display: grid;
-  gap: 2px;
-}
-
-.runner-head span {
-  font: 400 1.4rem / 1 var(--serif);
-}
-
-.runner-head small,
-.runner-help {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.runner-help {
-  grid-area: help;
-  align-self: end;
-  margin: 0;
-}
-
-.runner-stage {
-  grid-area: stage;
-  position: relative;
-}
-
-.runner canvas {
-  display: block;
-  width: 120px;
-  height: 160px;
-  border-radius: 10px;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  touch-action: manipulation;
-  cursor: pointer;
-}
-
-.runner-wait {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 10px;
-  background: rgba(7, 6, 11, 0.72);
-  text-align: center;
-  pointer-events: none;
-}
-
-.runner-wait b {
-  font-size: 0.9rem;
-}
-
-.runner-wait small {
-  color: #d9d4ec;
-  font-size: 0.74rem;
-  line-height: 1.35;
-}
-
-/* Wide screens: the game sits beside the lesson instead of above it. */
-@media (min-width: 1360px) {
-  .has-game .app {
-    padding-right: 300px;
-  }
-  .runner-dock {
-    position: fixed;
-    top: auto;
-    right: 24px;
-    bottom: 24px;
-    width: 252px;
-    margin: 0;
-  }
-  .runner {
-    grid-template-columns: 1fr;
-    grid-template-areas: "head" "stage" "help";
-  }
-  .runner-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .runner canvas {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 3 / 4;
-  }
-}
-
-@media (min-width: 1400px) {
-  .has-syllabus .runner-dock {
-    right: 10px;
-    bottom: 10px;
-    width: 300px;
-  }
-  .has-syllabus.has-game .app {
-    padding-right: 320px;
-  }
-  .has-game .syllabus {
-    padding-bottom: 470px;
-  }
-}
-
 /* ---------- game scores and leaderboard ---------- */
-
-.runner-head {
-  position: relative;
-}
 
 .runner-board-btn {
   justify-self: start;
@@ -2746,35 +2615,6 @@ fieldset:disabled .option {
 
 .runner-board-btn:hover {
   border-color: rgba(124, 106, 247, 0.8);
-}
-
-.runner-flash {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 2px 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: rgba(17, 15, 24, 0.92);
-  font-size: 0.72rem;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.runner-flash.best {
-  border-color: rgba(74, 222, 128, 0.6);
-  color: var(--good);
-}
-
-@media (min-width: 1360px) {
-  .runner-head {
-    flex-wrap: wrap;
-    gap: 4px 10px;
-  }
-  .runner-board-btn {
-    margin: 0 0 0 auto;
-  }
 }
 
 .board-scrim {
@@ -2874,4 +2714,297 @@ fieldset:disabled .option {
   background: rgba(255, 255, 255, 0.03);
   color: var(--text);
   cursor: pointer;
+}
+
+/* ---------- read-aloud highlighting and controls ---------- */
+
+::highlight(cotsi-sentence) {
+  background-color: rgba(124, 106, 247, 0.26);
+}
+
+::highlight(cotsi-word) {
+  background-color: rgba(255, 209, 102, 0.5);
+  color: #fff;
+}
+
+.reading-now {
+  border-radius: 6px;
+  background: rgba(124, 106, 247, 0.18);
+}
+
+.tap-to-read {
+  cursor: pointer;
+}
+
+.listen-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.listen-bar .listen-ctl {
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  font-size: 0.95rem;
+}
+
+.listen-bar .listen-ctl.main {
+  width: 48px;
+  border-color: rgba(124, 106, 247, 0.7);
+  background: #2a2350;
+}
+
+.listen-pos {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.listen-tip {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* ---------- the side game: split screen ---------- */
+
+/* Phones and small tablets: lesson on top, game below. */
+:root {
+  --game-h: 38vh;
+  --game-w: clamp(340px, 40vw, 620px);
+}
+
+.game-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 52;
+  height: var(--game-h);
+  padding: 8px max(8px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-right));
+  border-top: 1px solid rgba(124, 106, 247, 0.4);
+  background: #07060b;
+}
+
+body.has-game main {
+  padding-bottom: calc(var(--game-h) + 12px);
+}
+
+body.has-game .composer {
+  bottom: var(--game-h);
+}
+
+/* Monitors and laptops: lesson on the left, game on the right. */
+@media (min-width: 900px) {
+  .game-dock {
+    top: 0;
+    left: auto;
+    width: var(--game-w);
+    height: auto;
+    padding: 12px;
+    border-top: 0;
+    border-left: 1px solid rgba(124, 106, 247, 0.4);
+  }
+  body.has-game .app,
+  body.has-game.has-syllabus .app {
+    padding-right: var(--game-w);
+  }
+  body.has-game main {
+    padding-bottom: 40px;
+  }
+  body.has-game .composer {
+    bottom: 0;
+  }
+}
+
+.gp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+
+.gp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gp-games {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.gp-games button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.gp-games button.on {
+  border-color: rgba(124, 106, 247, 0.8);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.gp-games small {
+  font-size: 0.78rem;
+}
+
+@media (max-width: 899px) {
+  .gp-games small {
+    display: none;
+  }
+  .gp-games button.on small {
+    display: inline;
+  }
+}
+
+.gp-hide {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.gp-scores {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.gp-scores span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.gp-scores small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gp-scores b {
+  font: 400 1.25rem / 1 var(--serif);
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-scores .runner-board-btn {
+  margin: 0 0 0 auto;
+}
+
+.gp-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #05040c;
+}
+
+.gp-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.gp-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  padding: 16px;
+  background: rgba(7, 6, 11, 0.62);
+  text-align: center;
+  pointer-events: none;
+}
+
+.gp-wait b {
+  font: 400 1.4rem / 1.2 var(--serif);
+}
+
+.gp-wait small {
+  color: #d9d4ec;
+  font-size: 0.86rem;
+}
+
+.gp-flash {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(17, 15, 24, 0.9);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.gp-flash.good {
+  border-color: rgba(74, 222, 128, 0.7);
+  color: var(--good);
+}
+
+.gp-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 899px) {
+  .gp {
+    gap: 6px;
+  }
+  .gp-help {
+    display: none;
+  }
+}
+
+/* Phones with the game open: keep the controls to one short row so the lesson stays visible. */
+@media (max-width: 899px) {
+  body.has-game .listen-tip,
+  body.has-game .listen-game.on {
+    display: none;
+  }
+  body.has-game .listen-bar .listen-ctl {
+    width: 36px;
+    min-height: 36px;
+  }
+  body.has-game .composer {
+    gap: 6px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  body.has-game .composer .quick button {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
 }
