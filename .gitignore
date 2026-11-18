@@ -3,3 +3,4 @@ dev/.data.json
 node_modules/
 dist/
 dist-demo/
+*.tsbuildinfo
