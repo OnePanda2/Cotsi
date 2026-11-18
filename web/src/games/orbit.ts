@@ -2,6 +2,8 @@ import { burst, clamp, drawGlow, drawParticles, drawRock, drawStars, type Game, 
 
 // Orbit: a little moon circles a glowing planet. Hop between three rings to catch stars and
 // keep clear of meteors. Calm and slow: the moon never stops, and a meteor only ends the run.
+// Because the moon goes round, "out" and "in" follow it: the arrow pointing away from the planet
+// hops out, the arrow pointing toward it hops in. On a touch screen, tap the ring you want.
 
 type Item = { ring: number; angle: number; kind: "star" | "meteor"; age: number; life: number; shape: number[]; spin: number };
 
@@ -25,13 +27,26 @@ function make(ev: { point(): void; miss(): void }): Game {
     return { cx: w / 2, cy: h / 2, max, planet: max * 0.24 };
   };
 
+  const KEYS = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] } as const;
+
   return {
     key(dir) {
-      if (dir === "left" || dir === "down") ring = clamp(ring - 1, 0, 2);
-      if (dir === "right" || dir === "up") ring = clamp(ring + 1, 0, 2);
+      // Compare the arrow with the direction from the planet to the moon.
+      const [kx, ky] = KEYS[dir];
+      const along = kx * Math.cos(angle) + ky * Math.sin(angle);
+      if (along > 0.25) ring = clamp(ring + 1, 0, 2);
+      else if (along < -0.25) ring = clamp(ring - 1, 0, 2);
     },
-    pointer(type, x, _y, w) {
-      if (type === "down") this.key!(x < w / 2 ? "left" : "right");
+    pointer(type, x, y, w, h) {
+      if (type !== "down") return;
+      const { cx, cy, max } = geo(w, h);
+      const d = Math.hypot(x - cx, y - cy) / max;
+      // The ring nearest the tap.
+      let best = 0;
+      RINGS.forEach((r, i) => {
+        if (Math.abs(r - d) < Math.abs(RINGS[best] - d)) best = i;
+      });
+      ring = best;
     },
     step(dt, w, h) {
       t += dt;
@@ -142,6 +157,26 @@ function make(ev: { point(): void; miss(): void }): Game {
       trail.push({ x: mx, y: my });
       if (trail.length > 18) trail.shift();
       trail.forEach((p, i) => drawGlow(ctx, p.x, p.y, "rgba(140,230,255,1)", max * 0.03 * (i / trail.length), (i / trail.length) * 0.4));
+      // Faint arrows beside the moon: out (away from the planet) and in (toward it).
+      const ux = Math.cos(angle);
+      const uy = Math.sin(angle);
+      const chevron = (dirSign: number) => {
+        const d = max * 0.085 * dirSign;
+        const tipX = mx + ux * d;
+        const tipY = my + uy * d;
+        const back = max * 0.025 * dirSign;
+        const wing = max * 0.022;
+        ctx.beginPath();
+        ctx.moveTo(tipX - ux * back - uy * wing, tipY - uy * back + ux * wing);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(tipX - ux * back + uy * wing, tipY - uy * back - ux * wing);
+        ctx.stroke();
+      };
+      ctx.strokeStyle = "rgba(200,240,255,0.45)";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      if (ring < 2) chevron(1);
+      if (ring > 0) chevron(-1);
       drawGlow(ctx, mx, my, "rgba(140,230,255,1)", max * 0.13, 0.9);
       ctx.fillStyle = "#f2fdff";
       ctx.beginPath();
@@ -162,6 +197,6 @@ export const ORBIT: GameDef = {
   name: "Orbit",
   icon: "🪐",
   unit: "stars",
-  help: "Tap left or right (or ← →) to hop rings · catch ⭐, dodge meteors",
+  help: "Arrow pointing away from the planet hops out, toward it hops in · or tap a ring · catch ⭐, dodge meteors",
   make,
 };

@@ -1,52 +1,69 @@
 import { burst, drawGlow, drawParticles, drawStars, type Game, type GameDef, makeStars, type Particle, rand, stepParticles, TAU } from "./common";
 
-// Bubble Garden: glowing bubbles drift up through a slow aurora. Pop the colour the garden asks
-// for; popping a different colour ends the run. Tap or click.
+// Bubble Garden: glowing bubbles drift up through a slow aurora. Pop the glowing ones; leave the
+// dark spiky ones alone (popping one ends the run). Nothing to read, so the ears stay on the lesson.
 
 const COLOURS = [
-  { name: "pink", fill: "rgba(255,140,200,1)", core: "#ffd3ec" },
-  { name: "teal", fill: "rgba(90,230,220,1)", core: "#d3fffb" },
-  { name: "gold", fill: "rgba(255,206,110,1)", core: "#fff2cf" },
+  { fill: "rgba(255,140,200,1)", core: "#ffd3ec" },
+  { fill: "rgba(90,230,220,1)", core: "#d3fffb" },
+  { fill: "rgba(255,206,110,1)", core: "#fff2cf" },
 ];
 
-type Bubble = { x: number; y: number; r: number; c: number; v: number; phase: number; popped?: number };
+type Bubble = { x: number; y: number; r: number; c: number; v: number; phase: number; spiky: boolean; spin: number; popped?: number };
 
 function make(ev: { point(): void; miss(): void }): Game {
   const stars = makeStars(40);
   let t = 0;
   let bubbles: Bubble[] = [];
   let nextSpawn = 0.3;
-  let target = 0;
-  let sinceChange = 0;
-  let announce = 2;
   let particles: Particle[] = [];
   let shake = 0;
 
-  const pickTarget = () => {
-    let next = target;
-    while (next === target) next = Math.floor(rand(0, COLOURS.length));
-    target = next;
-    sinceChange = 0;
-    announce = 1.6;
+  const drawSpiky = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, spin: number, alpha: number) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spin);
+    ctx.globalAlpha = alpha;
+    drawGlow(ctx, 0, 0, "rgba(255,70,90,0.8)", r * 2.2, 0.35 * alpha);
+    ctx.beginPath();
+    const points = 12;
+    for (let i = 0; i < points * 2; i++) {
+      const a = (i / (points * 2)) * TAU;
+      const rr = i % 2 ? r * 0.72 : r * 1.12;
+      if (i) ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      else ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.1);
+    g.addColorStop(0, "#5a3a6e");
+    g.addColorStop(1, "#1a0f24");
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,110,130,0.75)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
   };
 
   return {
     pointer(type, px, py, w, h) {
       if (type !== "down") return;
       const size = Math.min(w, h);
-      // Topmost (last drawn) bubble under the tap.
+      // The topmost (last drawn) bubble under the tap.
       for (let i = bubbles.length - 1; i >= 0; i--) {
         const b = bubbles[i];
         if (b.popped !== undefined) continue;
-        if (Math.hypot(px - b.x * w, py - b.y * h) > b.r * size * 1.15) continue;
+        const bx = (b.x + Math.sin(t * 1.1 + b.phase) * 0.025) * w;
+        if (Math.hypot(px - bx, py - b.y * h) > b.r * size * 1.15) continue;
         b.popped = 0;
-        burst(particles, b.x * w, b.y * h, COLOURS[b.c].fill, 16, 120);
-        if (b.c === target) {
-          ev.point();
-          if (++sinceChange >= 6) pickTarget();
-        } else {
+        if (b.spiky) {
+          burst(particles, bx, b.y * h, "rgba(255,90,110,1)", 18, 130);
           shake = 0.4;
           ev.miss();
+        } else {
+          burst(particles, bx, b.y * h, COLOURS[b.c].fill, 16, 120);
+          ev.point();
         }
         return;
       }
@@ -54,13 +71,20 @@ function make(ev: { point(): void; miss(): void }): Game {
     step(dt) {
       t += dt;
       shake = Math.max(0, shake - dt);
-      announce = Math.max(0, announce - dt);
       nextSpawn -= dt;
       if (nextSpawn <= 0) {
         nextSpawn = rand(0.75, 1.15);
-        // At least two in five are the colour asked for.
-        const c = Math.random() < 0.42 ? target : Math.floor(rand(0, COLOURS.length));
-        bubbles.push({ x: rand(0.12, 0.88), y: 1.08, r: rand(0.055, 0.085), c, v: rand(0.07, 0.11), phase: rand(0, TAU) });
+        const spiky = Math.random() < 0.25;
+        bubbles.push({
+          x: rand(0.12, 0.88),
+          y: 1.08,
+          r: spiky ? rand(0.05, 0.065) : rand(0.055, 0.085),
+          c: Math.floor(rand(0, COLOURS.length)),
+          v: rand(0.07, 0.11),
+          phase: rand(0, TAU),
+          spiky,
+          spin: rand(-0.6, 0.6),
+        });
       }
       for (const b of bubbles) {
         if (b.popped !== undefined) b.popped += dt;
@@ -109,14 +133,18 @@ function make(ev: { point(): void; miss(): void }): Game {
         ctx.fill();
       }
 
-      // Bubbles: glassy spheres with a coloured glow and a soft highlight.
       for (const b of bubbles) {
-        const col = COLOURS[b.c];
         const x = (b.x + Math.sin(t * 1.1 + b.phase) * 0.025) * w;
         const y = b.y * h;
         const grow = b.popped !== undefined ? 1 + b.popped * 2 : 1;
         const alpha = b.popped !== undefined ? 1 - b.popped / 0.25 : 1;
         const r = b.r * size * grow;
+        if (b.spiky) {
+          drawSpiky(ctx, x, y, r, t * b.spin, alpha);
+          continue;
+        }
+        // Glassy spheres with a coloured glow and a soft highlight.
+        const col = COLOURS[b.c];
         drawGlow(ctx, x, y, col.fill, r * 2.4, 0.45 * alpha);
         const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.05, x, y, r);
         g.addColorStop(0, col.core);
@@ -134,23 +162,6 @@ function make(ev: { point(): void; miss(): void }): Game {
       }
       drawParticles(ctx, particles);
       ctx.restore();
-
-      // Which colour to pop.
-      const col = COLOURS[target];
-      const label = `Pop the ${col.name} bubbles`;
-      ctx.font = `600 ${Math.round(Math.max(12, size * 0.045))}px Inter, system-ui, sans-serif`;
-      const tw = ctx.measureText(label).width;
-      const bx = w / 2 - tw / 2 - 26;
-      const by = h * 0.05;
-      const pad = size * 0.03;
-      ctx.fillStyle = `rgba(10,12,30,${0.55 + announce * 0.2})`;
-      ctx.beginPath();
-      ctx.roundRect(bx, by, tw + 44, size * 0.045 + pad * 1.6, 999);
-      ctx.fill();
-      drawGlow(ctx, bx + 16, by + (size * 0.045 + pad * 1.6) / 2, col.fill, 18, 1);
-      ctx.fillStyle = "#f4f2fb";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, bx + 32, by + (size * 0.045 + pad * 1.6) / 2);
     },
   };
 }
@@ -160,6 +171,6 @@ export const BUBBLES: GameDef = {
   name: "Bubble Garden",
   icon: "🫧",
   unit: "bubbles",
-  help: "Tap or click the colour it asks for · another colour ends the run",
+  help: "Tap or click the glowing bubbles · leave the dark spiky ones alone",
   make,
 };
