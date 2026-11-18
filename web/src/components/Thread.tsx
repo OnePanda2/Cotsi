@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, stream } from "../api";
-import { primeSpeech, reader, speechFor, speechSupported } from "../speech";
+import { primeSpeech, reader, speechFor, speechSupported, VOICES_ON } from "../speech";
 import { getItem, setItem } from "../storage";
 import type { Message, Source, Track } from "../types";
 import { LaneRunner } from "./LaneRunner";
@@ -83,7 +83,9 @@ function Sources({ sources }: { sources?: Source[] }) {
 
 export function Thread(props: Props) {
   const { trackId, thread, onTrack } = props;
-  const listen = Boolean(props.listen) && speechSupported();
+  // Listening mode: the game is always there; reading aloud only once natural voices are on.
+  const listenMode = Boolean(props.listen);
+  const listen = listenMode && VOICES_ON && speechSupported();
   const speech = useReader();
   const [game, setGame] = useState(() => getItem("local", GAME_KEY) === "on");
   const readKey = (m: Message) => `${trackId}:${thread}:${m.at}`;
@@ -171,7 +173,7 @@ export function Thread(props: Props) {
   useEffect(() => () => reader.stop(), [trackId, thread]);
 
   // Wide screens make room for the game beside the lesson.
-  const showGame = listen && game;
+  const showGame = listenMode && game;
   useEffect(() => {
     if (!showGame) return;
     document.body.classList.add("has-game");
@@ -207,7 +209,8 @@ export function Thread(props: Props) {
   const lastReply = [...list].reverse().find((m) => m.role === "assistant");
   const readLast = () => lastReply && void reader.read(speechFor(lastReply.text), readKey(lastReply));
   // The game runs while Cotsi writes or reads, and waits while it's the learner's turn.
-  const running = busy || speech.status === "speaking";
+  // Without read-aloud the learner reads at their own pace, so the game simply keeps going.
+  const running = !listen || busy || speech.status === "speaking";
   const waitingNote = speech.status === "paused" ? "Reading is paused. Press ▶ to carry on." : "Your turn: answer Cotsi to keep running.";
 
   return (
@@ -277,8 +280,9 @@ export function Thread(props: Props) {
 
       {(!empty || !props.startLabel) && (
         <form className="composer" onSubmit={submit}>
-          {listen && (
+          {listenMode && (
             <ListenBar
+              voicesOn={listen}
               onReadLast={readLast}
               canReadLast={Boolean(lastReply) && !busy}
               game={game}

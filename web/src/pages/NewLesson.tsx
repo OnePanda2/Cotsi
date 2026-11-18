@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { NotReady, useAiReady } from "../components/NotReady";
 import { ShowsPicker } from "../components/LearnMode";
+import { VOICES_ON } from "../speech";
 import type { Prefs, Track } from "../types";
 
 const COPY = {
@@ -82,7 +83,7 @@ export function NewLesson() {
       </fieldset>
 
       {prefs && kind === "topic" && prefs.mode !== "listen" && <StylePicker prefs={prefs} onChange={setPrefs} />}
-      {prefs?.mode === "listen" && <p className="fine">🎧 Cotsi will read this lesson aloud. Change the voice in Settings.</p>}
+      {prefs?.mode === "listen" && VOICES_ON && <p className="fine">🎧 Cotsi will read this lesson aloud. Change the voice in Settings.</p>}
       {kind === "book" && <p className="fine">Book lessons use the plain style. Cotsi tells you when it isn't sure about a book's details.</p>}
 
       {error && <div className="notice error">{error}</div>}

@@ -3,7 +3,8 @@ import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { useAuth } from "../auth";
 import { ReminderControl } from "../components/Reminders";
-import { VoicePicker } from "../components/Voice";
+import { VoicePicker, VoicesSoon } from "../components/Voice";
+import { VOICES_ON } from "../speech";
 
 /** Matches the API: first name and last initial, e.g. "Riya S." */
 function boardName(full: string): string {
@@ -59,14 +60,14 @@ export function Settings() {
           </button>
           <button type="button" className={prefs.mode === "listen" ? "on" : ""} onClick={() => setPrefs({ ...prefs, mode: "listen" })}>
             <b>🎧 Listening</b>
-            <small>Read aloud, plus a game</small>
+            <small>{VOICES_ON ? "Read aloud, plus a game" : "Plain lessons, plus a game"}</small>
           </button>
         </div>
       </fieldset>
       {prefs.mode === "listen" ? (
         <fieldset>
           <legend>Voice</legend>
-          <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} />
+          {VOICES_ON ? <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} /> : <VoicesSoon />}
         </fieldset>
       ) : null}
       {prefs.mode === "listen" ? (

@@ -21,6 +21,12 @@ export const PREVIEW_TEXT: Record<"en" | "hi", string> = {
   hi: "नमस्ते, यह आपकी Cotsi आवाज़ है। आपके पाठ इसी आवाज़ में पढ़े जाएँगे।",
 };
 
+/**
+ * Read-aloud is switched off until natural (human-sounding) voices replace the device voices,
+ * which sounded robotic in testing. Listening mode keeps its plain lessons and the game.
+ */
+export const VOICES_ON = false;
+
 export function speechSupported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
 }

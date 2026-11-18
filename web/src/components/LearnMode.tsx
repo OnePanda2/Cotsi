@@ -1,9 +1,9 @@
 import { type ReactNode, useState } from "react";
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
-import { reader } from "../speech";
+import { reader, VOICES_ON } from "../speech";
 import type { Prefs } from "../types";
-import { VoicePicker } from "./Voice";
+import { VoicePicker, VoicesSoon } from "./Voice";
 
 export const SHOW_IDEAS = ["Friends", "The Office", "Harry Potter", "Marvel's Avengers", "3 Idiots", "Taarak Mehta Ka Ooltah Chashmah"];
 
@@ -84,7 +84,11 @@ function ChooseMode() {
                 🎧
               </span>
               <b>Listening</b>
-              <small>Cotsi reads lessons aloud in a voice you choose, and you can play a calm game while you listen.</small>
+              <small>
+                {VOICES_ON
+                  ? "Cotsi reads lessons aloud in a voice you choose, and you can play a calm game while you listen."
+                  : "Plain lessons with no characters and a calm game alongside. Natural read-aloud voices are coming soon."}
+              </small>
             </button>
           </div>
         </>
@@ -112,9 +116,19 @@ function ChooseMode() {
           >
             ← Back
           </button>
-          <h1>Choose your voice</h1>
-          <p className="lede small">Tap ▶ to hear each one.</p>
-          <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} />
+          {VOICES_ON ? (
+            <>
+              <h1>Choose your voice</h1>
+              <p className="lede small">Tap ▶ to hear each one.</p>
+              <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} />
+            </>
+          ) : (
+            <>
+              <h1>Listening mode</h1>
+              <p className="lede small">Plain lessons with no characters, and a calm game to play alongside.</p>
+              <VoicesSoon />
+            </>
+          )}
         </>
       )}
 

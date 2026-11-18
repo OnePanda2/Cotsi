@@ -2576,6 +2576,11 @@ fieldset:disabled .option {
   margin-left: auto;
 }
 
+.listen-soon {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .listen-bar .listen-game.on {
   border-color: rgba(124, 106, 247, 0.7);
 }

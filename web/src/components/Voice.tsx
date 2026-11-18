@@ -112,12 +112,26 @@ export function VoicePicker({
 }
 
 /** Play / pause for whatever Cotsi is reading, shown above the message box in listening mode. */
-export function ListenBar({ onReadLast, canReadLast, game, onGame }: { onReadLast: () => void; canReadLast: boolean; game?: boolean; onGame?: () => void }) {
+export function ListenBar({
+  voicesOn,
+  onReadLast,
+  canReadLast,
+  game,
+  onGame,
+}: {
+  voicesOn: boolean;
+  onReadLast: () => void;
+  canReadLast: boolean;
+  game?: boolean;
+  onGame?: () => void;
+}) {
   const s = useReader();
   const speaking = s.status === "speaking";
   return (
     <div className="listen-bar" role="group" aria-label="Read aloud">
-      {s.status === "idle" ? (
+      {!voicesOn ? (
+        <span className="listen-soon">🎧 Natural voices coming soon</span>
+      ) : s.status === "idle" ? (
         <button type="button" className="listen-main" onClick={onReadLast} disabled={!canReadLast}>
           🔊 <span>Read the last reply</span>
         </button>
@@ -126,7 +140,7 @@ export function ListenBar({ onReadLast, canReadLast, game, onGame }: { onReadLas
           {speaking ? "⏸" : "▶"} <span>{speaking ? "Reading aloud…" : "Paused"}</span>
         </button>
       )}
-      {s.status !== "idle" && (
+      {voicesOn && s.status !== "idle" && (
         <button type="button" className="listen-stop" onClick={() => reader.stop()} aria-label="Stop reading">
           ■
         </button>
@@ -137,5 +151,15 @@ export function ListenBar({ onReadLast, canReadLast, game, onGame }: { onReadLas
         </button>
       )}
     </div>
+  );
+}
+
+/** Shown where voices would be chosen, until natural voices are switched on. */
+export function VoicesSoon() {
+  return (
+    <p className="notice calm">
+      🎧 Natural, human-sounding voices are coming very soon. Until then, listening mode gives you plain lessons written to be easy to
+      follow, plus the calm game to play alongside.
+    </p>
   );
 }
