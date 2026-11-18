@@ -25,6 +25,7 @@ export type TrackSummary = {
 
 export type Me = {
   user: { email: string; name: string };
+  voices?: { ready: boolean };
   prefs: Prefs;
   tracks: TrackSummary[];
   today: string;

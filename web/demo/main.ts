@@ -28,9 +28,46 @@ env.userDailyUsd = 1000;
 env.jobAnalysesPerDay = 1000;
 env.memberEmails = ["*"];
 
+// Natural voices: a stand-in for Azure that lists real voice names and returns a short silent clip.
+env.azureSpeechKey = "preview";
+env.azureSpeechRegion = "centralindia";
+const PREVIEW_VOICES = [
+  ["en-IN-NeerjaNeural", "Neerja", "Female", "en-IN"],
+  ["en-IN-PrabhatNeural", "Prabhat", "Male", "en-IN"],
+  ["en-US-AvaMultilingualNeural", "Ava Multilingual", "Female", "en-US"],
+  ["en-US-AndrewMultilingualNeural", "Andrew Multilingual", "Male", "en-US"],
+  ["en-GB-SoniaNeural", "Sonia", "Female", "en-GB"],
+  ["en-GB-RyanNeural", "Ryan", "Male", "en-GB"],
+  ["hi-IN-SwaraNeural", "Swara", "Female", "hi-IN"],
+  ["hi-IN-MadhurNeural", "Madhur", "Male", "hi-IN"],
+].map(([ShortName, DisplayName, Gender, Locale]) => ({ ShortName, DisplayName, Gender, Locale, VoiceType: "Neural" }));
+
+function silentWav(seconds: number): Uint8Array<ArrayBuffer> {
+  const rate = 8000;
+  const n = Math.round(rate * seconds);
+  const buf = new ArrayBuffer(44 + n);
+  const v = new DataView(buf);
+  const str = (o: number, t: string) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVE"); str(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+  v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, "data"); v.setUint32(40, n, true);
+  new Uint8Array(buf, 44).fill(128);
+  return new Uint8Array(buf);
+}
+
+const fakeAzure = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = String(input);
+  if (url.endsWith("/voices/list")) return Promise.resolve(new Response(JSON.stringify(PREVIEW_VOICES)));
+  const words = String(init?.body ?? "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+  return new Promise<Response>((resolve) =>
+    setTimeout(() => resolve(new Response(silentWav(Math.min(20, 0.35 * words)), { headers: { "content-type": "audio/wav" } })), 300),
+  );
+}) as typeof fetch;
+
 const deps = {
   env,
   store,
+  ttsFetch: fakeAzure,
   claude: makeMockClaude(10, 900),
   verifyToken: (token: string) =>
     Promise.resolve(token.startsWith("dev:") ? { id: "preview", email: "riya@example.com", name: "Riya Sharma" } : null),

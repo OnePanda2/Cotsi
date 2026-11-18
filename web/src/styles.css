@@ -2581,6 +2581,12 @@ fieldset:disabled .option {
   font-size: 0.84rem;
 }
 
+.listen-error {
+  flex-basis: 100%;
+  color: #fde9b0;
+  font-size: 0.82rem;
+}
+
 .listen-bar .listen-game.on {
   border-color: rgba(124, 106, 247, 0.7);
 }

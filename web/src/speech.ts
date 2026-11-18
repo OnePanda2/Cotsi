@@ -1,106 +1,24 @@
-// Read-aloud for listening mode, using the voices built into the learner's phone or computer
-// (the Web Speech API). They're free, work offline, and most phones include English (India),
-// English (US/UK) and Hindi. Nothing is sent to a server.
+// Read-aloud for listening mode, with natural voices from Microsoft Azure. The browser sends
+// text to the Cotsi server, which asks Azure for the audio (the Azure key never reaches the
+// browser) and counts the cost toward the learner's daily limit.
 
+import { apiAudio, ApiError } from "./api";
 import { parseReply } from "./components/Rich";
 
-export type VoiceGroup = "en-IN" | "en-US" | "en-GB" | "hi-IN" | "en";
-export type VoiceOption = { id: string; name: string; lang: string; group: VoiceGroup; local: boolean };
+export type VoiceGroup = "en-IN" | "en-US" | "en-GB" | "hi-IN";
+export type Voice = { id: string; name: string; gender: string; group: VoiceGroup };
 
 export const GROUP_LABEL: Record<VoiceGroup, string> = {
   "en-IN": "English (India)",
   "en-US": "English (US)",
   "en-GB": "English (UK)",
   "hi-IN": "Hindi",
-  en: "Other English",
 };
-const GROUP_ORDER: VoiceGroup[] = ["en-IN", "en-US", "en-GB", "hi-IN", "en"];
+export const DEFAULT_VOICE = "en-IN-NeerjaNeural";
 
-export const PREVIEW_TEXT: Record<"en" | "hi", string> = {
-  en: "Hi, I'm your Cotsi voice. I'll read your lessons aloud, one idea at a time.",
-  hi: "नमस्ते, यह आपकी Cotsi आवाज़ है। आपके पाठ इसी आवाज़ में पढ़े जाएँगे।",
-};
-
-/**
- * Read-aloud is switched off until natural (human-sounding) voices replace the device voices,
- * which sounded robotic in testing. Listening mode keeps its plain lessons and the game.
- */
-export const VOICES_ON = false;
-
-export function speechSupported(): boolean {
-  return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
-}
-
-function groupOf(lang: string): VoiceGroup | null {
-  const l = lang.replace("_", "-").toLowerCase();
-  if (l === "en-in") return "en-IN";
-  if (l === "en-us") return "en-US";
-  if (l === "en-gb") return "en-GB";
-  if (l.startsWith("hi")) return "hi-IN";
-  if (l.startsWith("en")) return "en";
-  return null;
-}
-
-export function voiceId(v: SpeechSynthesisVoice): string {
-  return `device:${v.lang}:${v.name}`;
-}
-
-/** The device's voices, waiting briefly for them to load (Chrome loads them after the page). */
-export function loadVoices(timeoutMs = 2500): Promise<SpeechSynthesisVoice[]> {
-  if (!speechSupported()) return Promise.resolve([]);
-  const now = speechSynthesis.getVoices();
-  if (now.length) return Promise.resolve(now);
-  return new Promise((resolve) => {
-    const done = () => {
-      speechSynthesis.removeEventListener("voiceschanged", done);
-      resolve(speechSynthesis.getVoices());
-    };
-    speechSynthesis.addEventListener("voiceschanged", done);
-    setTimeout(done, timeoutMs);
-  });
-}
-
-/** "Microsoft Heera - English (India)" → "Heera"; the group already says the language. */
-function shortName(name: string): string {
-  const short = name
-    .replace(/^(Microsoft|Google|Apple)\s+/i, "")
-    .replace(/\s+-\s+.*$/, "")
-    .replace(/\s*\((Natural|Enhanced|Premium)\)\s*/i, " ($1)")
-    .trim();
-  return short || name;
-}
-
-/** English and Hindi voices, grouped India first. */
-export function voiceOptions(voices: SpeechSynthesisVoice[]): VoiceOption[] {
-  const out: VoiceOption[] = [];
-  const seen = new Set<string>();
-  for (const v of voices) {
-    const group = groupOf(v.lang);
-    if (!group || seen.has(voiceId(v))) continue;
-    seen.add(voiceId(v));
-    out.push({ id: voiceId(v), name: shortName(v.name), lang: v.lang, group, local: v.localService });
-  }
-  return out.sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || a.name.localeCompare(b.name));
-}
-
-export function groupLabel(group: VoiceGroup): string {
-  return GROUP_LABEL[group];
-}
-
-/** The saved voice, or the best default: English (India), then US, UK, any English. */
-export function pickVoice(voices: SpeechSynthesisVoice[], id?: string): SpeechSynthesisVoice | null {
-  if (id) {
-    const exact = voices.find((v) => voiceId(v) === id);
-    if (exact) return exact;
-    const [, lang, name] = id.split(":");
-    const same = voices.find((v) => v.name === name) ?? voices.find((v) => v.lang === lang);
-    if (same) return same;
-  }
-  for (const g of GROUP_ORDER) {
-    const v = voices.find((x) => groupOf(x.lang) === g);
-    if (v) return v;
-  }
-  return voices[0] ?? null;
+/** Saved voices from before natural voices ("device:…") fall back to the default. */
+export function voiceOrDefault(id?: string): string {
+  return id && /^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/.test(id) ? id : DEFAULT_VOICE;
 }
 
 // ------------------------------------------------------------------ turning a reply into speech
@@ -152,19 +70,20 @@ export function speechFor(reply: string): string {
   return parts.filter(Boolean).join(" ");
 }
 
-/** Short pieces, so long replies don't stall (some browsers stop after about 15 seconds). */
-export function chunks(text: string, max = 220): string[] {
+/** Pieces of a reply: a short first one so audio starts quickly, then longer ones. */
+export function chunks(text: string, first = 260, max = 900): string[] {
   const sentences = text.match(/[^.!?।]+[.!?।]+["')\]]*\s*|[^.!?।]+$/g) ?? [];
   const out: string[] = [];
   let cur = "";
+  const limit = () => (out.length ? max : first);
   for (const s of sentences.map((x) => x.trim()).filter(Boolean)) {
-    if (s.length > max) {
+    if (s.length > limit()) {
       if (cur) out.push(cur);
       cur = "";
       for (const piece of s.match(new RegExp(`.{1,${max}}(\\s|$)`, "g")) ?? [s]) out.push(piece.trim());
       continue;
     }
-    if ((cur + " " + s).trim().length > max) {
+    if ((cur + " " + s).trim().length > limit()) {
       if (cur) out.push(cur);
       cur = s;
     } else {
@@ -177,21 +96,24 @@ export function chunks(text: string, max = 220): string[] {
 
 // ------------------------------------------------------------------ the reader
 
-export type ReaderState = { status: "idle" | "speaking" | "paused"; key: string | null };
-
+export type ReaderState = { status: "idle" | "loading" | "speaking" | "paused"; key: string | null; error?: string };
 type Listener = (s: ReaderState) => void;
 
-/**
- * One reader for the whole app. Pause is done by stopping and remembering the piece, because
- * the browser's own pause doesn't work reliably on Android.
- */
+// A short silent clip. Phones only allow audio that starts from a tap, so the first tap plays this
+// on the same audio element, which then may play lesson audio later on its own.
+const SILENCE =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+
 class Reader {
+  private audio: HTMLAudioElement | null = null;
   private parts: string[] = [];
   private index = 0;
   private gen = 0;
   private listeners = new Set<Listener>();
+  private cache = new Map<string, string>(); // voice|rate|text -> object URL
+  private ended: (() => void) | null = null;
   state: ReaderState = { status: "idle", key: null };
-  voice?: string;
+  voice = DEFAULT_VOICE;
   rate = 1;
 
   subscribe(fn: Listener): () => void {
@@ -204,89 +126,155 @@ class Reader {
     for (const fn of this.listeners) fn(state);
   }
 
+  private el(): HTMLAudioElement {
+    if (!this.audio) {
+      this.audio = new Audio();
+      this.audio.preload = "auto";
+    }
+    return this.audio;
+  }
+
+  /** Unlocks audio on phones. Call from a tap. */
+  prime() {
+    const a = this.el();
+    if (a.src) return;
+    a.src = SILENCE;
+    void a.play().catch(() => {});
+  }
+
+  private remember(key: string, url: string) {
+    this.cache.set(key, url);
+    if (this.cache.size > 60) {
+      const [oldest, old] = this.cache.entries().next().value as [string, string];
+      this.cache.delete(oldest);
+      URL.revokeObjectURL(old);
+    }
+  }
+
+  private async audioFor(text: string): Promise<string> {
+    const key = `${this.voice}|${this.rate}|${text}`;
+    const hit = this.cache.get(key);
+    if (hit) return hit;
+    const blob = await apiAudio("POST", "/tts", { text, voice: this.voice, rate: this.rate });
+    const url = URL.createObjectURL(blob);
+    this.remember(key, url);
+    return url;
+  }
+
   /** Reads text aloud from the start. `key` names what is being read (e.g. a message). */
   async read(text: string, key: string) {
-    if (!speechSupported()) return;
-    this.stopSpeech();
+    this.stop();
     this.parts = chunks(text);
     this.index = 0;
-    if (!this.parts.length) return this.set({ status: "idle", key: null });
-    this.set({ status: "speaking", key });
-    await this.play(++this.gen);
+    if (!this.parts.length) return;
+    const gen = ++this.gen;
+    this.set({ status: "loading", key });
+    await this.play(gen, key);
   }
 
-  private async play(gen: number) {
-    const voices = await loadVoices();
-    const voice = pickVoice(voices, this.voice);
-    while (gen === this.gen && this.index < this.parts.length) {
-      const ok = await this.say(this.parts[this.index], voice);
-      if (gen !== this.gen) return;
-      if (!ok) break;
-      this.index++;
-    }
-    if (gen === this.gen) this.set({ status: "idle", key: null });
-  }
-
-  private say(text: string, voice: SpeechSynthesisVoice | null): Promise<boolean> {
-    return new Promise((resolve) => {
-      const u = new SpeechSynthesisUtterance(text);
-      if (voice) {
-        u.voice = voice;
-        u.lang = voice.lang;
+  /** Plays the fixed sample for a voice (made once on the server and shared). */
+  async preview(voice: string, rate: number) {
+    this.stop();
+    const gen = ++this.gen;
+    const key = `preview:${voice}`;
+    this.set({ status: "loading", key });
+    try {
+      const cacheKey = `preview|${voice}|${rate}`;
+      let url = this.cache.get(cacheKey);
+      if (!url) {
+        url = URL.createObjectURL(await apiAudio("GET", `/tts/preview?voice=${encodeURIComponent(voice)}&rate=${rate}`));
+        this.remember(cacheKey, url);
       }
-      u.rate = this.rate;
-      u.onend = () => resolve(true);
-      u.onerror = (e) => resolve(e.error === "interrupted" || e.error === "canceled");
-      speechSynthesis.speak(u);
+      if (gen !== this.gen) return;
+      this.set({ status: "speaking", key });
+      await this.playUrl(url);
+      if (gen === this.gen) this.set({ status: "idle", key: null });
+    } catch (err) {
+      if (gen === this.gen) this.fail(err);
+    }
+  }
+
+  private async play(gen: number, key: string) {
+    try {
+      let next: Promise<string> | null = this.audioFor(this.parts[this.index]);
+      while (gen === this.gen && this.index < this.parts.length) {
+        const url = await next!;
+        // Fetch the next piece while this one plays, so there's no gap between them.
+        next = this.index + 1 < this.parts.length ? this.audioFor(this.parts[this.index + 1]) : null;
+        if (gen !== this.gen) return;
+        if (this.state.status !== "paused") this.set({ status: "speaking", key });
+        await this.playUrl(url);
+        if (gen !== this.gen) return;
+        this.index++;
+      }
+      if (gen === this.gen) this.set({ status: "idle", key: null });
+    } catch (err) {
+      if (gen === this.gen) this.fail(err);
+    }
+  }
+
+  private fail(err: unknown) {
+    const message =
+      err instanceof ApiError
+        ? err.code === "user_limit" || err.code === "site_full"
+          ? "You've reached today's listening limit. It resets tomorrow."
+          : err.message
+        : "The voice didn't load. Please try again.";
+    this.set({ status: "idle", key: null, error: message });
+  }
+
+  private playUrl(url: string): Promise<void> {
+    const a = this.el();
+    return new Promise((resolve, reject) => {
+      const done = () => {
+        a.onended = null;
+        a.onerror = null;
+        this.ended = null;
+        resolve();
+      };
+      this.ended = done;
+      a.onended = done;
+      a.onerror = () => {
+        a.onended = null;
+        a.onerror = null;
+        this.ended = null;
+        reject(new Error("audio error"));
+      };
+      a.src = url;
+      a.play().catch((e) => {
+        // Blocked until the learner taps: wait paused instead of failing.
+        if ((e as Error)?.name === "NotAllowedError") this.set({ status: "paused", key: this.state.key });
+        else reject(e);
+      });
     });
   }
 
   pause() {
     if (this.state.status !== "speaking") return;
-    this.gen++;
-    speechSynthesis.cancel();
+    this.audio?.pause();
     this.set({ status: "paused", key: this.state.key });
   }
 
   resume() {
     if (this.state.status !== "paused") return;
     this.set({ status: "speaking", key: this.state.key });
-    void this.play(++this.gen);
+    void this.audio?.play().catch(() => this.set({ status: "paused", key: this.state.key }));
   }
 
   stop() {
-    this.stopSpeech();
-    this.parts = [];
-    this.set({ status: "idle", key: null });
-  }
-
-  private stopSpeech() {
     this.gen++;
-    if (speechSupported()) speechSynthesis.cancel();
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.removeAttribute("src");
+    }
+    this.ended?.();
+    this.parts = [];
+    if (this.state.status !== "idle" || this.state.error) this.set({ status: "idle", key: null });
   }
 }
 
 export const reader = new Reader();
 
-let primed = false;
-/** iPhones only allow speech that starts from a tap; one silent utterance unlocks it for the page. */
 export function primeSpeech() {
-  if (primed || !speechSupported()) return;
-  primed = true;
-  const u = new SpeechSynthesisUtterance(" ");
-  u.volume = 0;
-  speechSynthesis.speak(u);
-}
-
-/** Plays a short sample in one voice (Settings and the welcome screen). */
-export async function previewVoice(id: string, rate = 1) {
-  const voices = await loadVoices();
-  const v = pickVoice(voices, id);
-  const prev = reader.voice;
-  const prevRate = reader.rate;
-  reader.voice = id;
-  reader.rate = rate;
-  await reader.read(PREVIEW_TEXT[v?.lang.toLowerCase().startsWith("hi") ? "hi" : "en"], `preview:${id}`);
-  reader.voice = prev;
-  reader.rate = prevRate;
+  reader.prime();
 }

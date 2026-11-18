@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { type VoiceGroup, groupLabel, loadVoices, pickVoice, previewVoice, reader, type ReaderState, speechSupported, voiceId, type VoiceOption, voiceOptions } from "../speech";
+import { api, ApiError } from "../api";
+import { useMe } from "../App";
+import { GROUP_LABEL, reader, type ReaderState, type Voice, type VoiceGroup, voiceOrDefault } from "../speech";
 
 export function useReader(): ReaderState {
   const [state, setState] = useState(reader.state);
@@ -7,25 +9,10 @@ export function useReader(): ReaderState {
   return state;
 }
 
-export function useVoices(): { voices: SpeechSynthesisVoice[]; options: VoiceOption[]; loaded: boolean } {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    let live = true;
-    void loadVoices().then((v) => {
-      if (!live) return;
-      setVoices(v);
-      setLoaded(true);
-    });
-    // Some browsers add voices later (e.g. after a language pack downloads).
-    const more = () => setVoices(speechSynthesis.getVoices());
-    if (speechSupported()) speechSynthesis.addEventListener("voiceschanged", more);
-    return () => {
-      live = false;
-      if (speechSupported()) speechSynthesis.removeEventListener("voiceschanged", more);
-    };
-  }, []);
-  return { voices, options: voiceOptions(voices), loaded };
+/** True once natural voices are set up on the server. */
+export function useVoicesOn(): boolean {
+  const { me } = useMe();
+  return Boolean(me?.voices?.ready);
 }
 
 export const SPEEDS = [
@@ -34,7 +21,24 @@ export const SPEEDS = [
   { rate: 1.2, label: "Faster" },
 ];
 
-/** The list of voices on this device, India first, each with a preview button. */
+let voiceList: Voice[] | null = null;
+
+function useVoiceList(): { voices: Voice[] | null; error: string } {
+  const [voices, setVoices] = useState<Voice[] | null>(voiceList);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (voiceList) return;
+    api<{ voices: Voice[] }>("GET", "/tts/voices")
+      .then((d) => {
+        voiceList = d.voices;
+        setVoices(d.voices);
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Couldn't load the voices."));
+  }, []);
+  return { voices, error };
+}
+
+/** Natural voices, India first, each with a sample to play. */
 export function VoicePicker({
   voice,
   rate,
@@ -44,58 +48,50 @@ export function VoicePicker({
   rate?: number;
   onChange: (next: { voice?: string; rate: number }) => void;
 }) {
-  const { voices, options, loaded } = useVoices();
+  const { voices, error } = useVoiceList();
   const playing = useReader();
   const speed = rate ?? 1;
-  const chosen = voices.length ? pickVoice(voices, voice) : null;
-  const chosenId = chosen ? voiceId(chosen) : voice;
+  const chosenId = voiceOrDefault(voice);
   useEffect(() => () => reader.stop(), []);
 
-  if (!speechSupported()) {
-    return <p className="notice calm">This browser can't read aloud. Try Chrome, Edge or Safari, or the browser on your phone.</p>;
-  }
-  if (loaded && !options.length) {
-    return (
-      <p className="notice calm">
-        No English or Hindi voices are installed on this device. On Android, open Settings → Text-to-speech and add English (India). On
-        iPhone, open Settings → Accessibility → Spoken Content → Voices.
-      </p>
-    );
-  }
-  const groups = [...new Set(options.map((o) => o.group))] as VoiceGroup[];
+  if (error) return <p className="notice calm">{error}</p>;
+  if (!voices) return <p className="fine">Loading voices…</p>;
+  const groups = [...new Set(voices.map((v) => v.group))] as VoiceGroup[];
   return (
     <div className="voices">
-      {!loaded && <p className="fine">Finding the voices on this device…</p>}
       {groups.map((g) => (
         <fieldset key={g} className="voice-group">
-          <legend>{groupLabel(g)}</legend>
-          {options
-            .filter((o) => o.group === g)
-            .map((o) => {
-              const on = o.id === chosenId;
-              const isPlaying = playing.key === `preview:${o.id}` && playing.status === "speaking";
+          <legend>{GROUP_LABEL[g]}</legend>
+          {voices
+            .filter((v) => v.group === g)
+            .map((v) => {
+              const on = v.id === chosenId;
+              const mine = playing.key === `preview:${v.id}`;
+              const busy = mine && playing.status === "loading";
+              const isPlaying = mine && playing.status === "speaking";
               return (
-                <div key={o.id} className={`voice${on ? " on" : ""}`}>
+                <div key={v.id} className={`voice${on ? " on" : ""}`}>
                   <label>
-                    <input type="radio" name="voice" checked={on} onChange={() => onChange({ voice: o.id, rate: speed })} />
+                    <input type="radio" name="voice" checked={on} onChange={() => onChange({ voice: v.id, rate: speed })} />
                     <span>
-                      <b>{o.name}</b>
-                      {!o.local && <small>Needs internet</small>}
+                      <b>{v.name}</b>
+                      <small>{v.gender}</small>
                     </span>
                   </label>
                   <button
                     type="button"
                     className="voice-play"
-                    aria-label={isPlaying ? `Stop ${o.name}` : `Play a sample of ${o.name}`}
-                    onClick={() => (isPlaying ? reader.stop() : void previewVoice(o.id, speed))}
+                    aria-label={isPlaying ? `Stop ${v.name}` : `Play a sample of ${v.name}`}
+                    onClick={() => (isPlaying || busy ? reader.stop() : void reader.preview(v.id, speed))}
                   >
-                    {isPlaying ? "■" : "▶"}
+                    {busy ? "…" : isPlaying ? "■" : "▶"}
                   </button>
                 </div>
               );
             })}
         </fieldset>
       ))}
+      {playing.error && <p className="notice calm">{playing.error}</p>}
       <fieldset className="voice-speed">
         <legend>Speed</legend>
         <div className="segmented">
@@ -106,7 +102,7 @@ export function VoicePicker({
           ))}
         </div>
       </fieldset>
-      <p className="fine">These are the voices built into this device, so they're free and work offline. Other devices may offer different ones.</p>
+      <p className="fine">Natural voices from Microsoft Azure. Listening counts toward your daily usage, like lessons do.</p>
     </div>
   );
 }
@@ -133,7 +129,11 @@ export function ListenBar({
         <span className="listen-soon">🎧 Natural voices coming soon</span>
       ) : s.status === "idle" ? (
         <button type="button" className="listen-main" onClick={onReadLast} disabled={!canReadLast}>
-          🔊 <span>Read the last reply</span>
+          🔊 <span>{s.error ? "Try reading again" : "Read the last reply"}</span>
+        </button>
+      ) : s.status === "loading" ? (
+        <button type="button" className="listen-main" onClick={() => reader.stop()}>
+          … <span>Getting the voice ready</span>
         </button>
       ) : (
         <button type="button" className="listen-main" onClick={() => (speaking ? reader.pause() : reader.resume())}>
@@ -150,6 +150,7 @@ export function ListenBar({
           🎮 <span>{game ? "Hide game" : "Play while you listen"}</span>
         </button>
       )}
+      {voicesOn && s.error && <span className="listen-error">{s.error}</span>}
     </div>
   );
 }

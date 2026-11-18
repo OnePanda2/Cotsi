@@ -1,11 +1,11 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, stream } from "../api";
-import { primeSpeech, reader, speechFor, speechSupported, VOICES_ON } from "../speech";
+import { primeSpeech, reader, speechFor } from "../speech";
 import { getItem, setItem } from "../storage";
 import type { Message, Source, Track } from "../types";
 import { LaneRunner } from "./LaneRunner";
 import { type ChoiceQuestion, choicesOf, Rich } from "./Rich";
-import { ListenBar, useReader } from "./Voice";
+import { ListenBar, useReader, useVoicesOn } from "./Voice";
 
 type Props = {
   trackId: string;
@@ -85,7 +85,8 @@ export function Thread(props: Props) {
   const { trackId, thread, onTrack } = props;
   // Listening mode: the game is always there; reading aloud only once natural voices are on.
   const listenMode = Boolean(props.listen);
-  const listen = listenMode && VOICES_ON && speechSupported();
+  const voicesOn = useVoicesOn();
+  const listen = listenMode && voicesOn;
   const speech = useReader();
   const [game, setGame] = useState(() => getItem("local", GAME_KEY) === "on");
   const readKey = (m: Message) => `${trackId}:${thread}:${m.at}`;
@@ -210,7 +211,7 @@ export function Thread(props: Props) {
   const readLast = () => lastReply && void reader.read(speechFor(lastReply.text), readKey(lastReply));
   // The game runs while Cotsi writes or reads, and waits while it's the learner's turn.
   // Without read-aloud the learner reads at their own pace, so the game simply keeps going.
-  const running = !listen || busy || speech.status === "speaking";
+  const running = !listen || busy || speech.status === "speaking" || speech.status === "loading";
   const waitingNote = speech.status === "paused" ? "Reading is paused. Press ▶ to carry on." : "Your turn: answer Cotsi to keep running.";
 
   return (

@@ -1,9 +1,9 @@
 import { type ReactNode, useState } from "react";
 import { api, ApiError } from "../api";
 import { useMe } from "../App";
-import { reader, VOICES_ON } from "../speech";
+import { reader } from "../speech";
 import type { Prefs } from "../types";
-import { VoicePicker, VoicesSoon } from "./Voice";
+import { useVoicesOn, VoicePicker, VoicesSoon } from "./Voice";
 
 export const SHOW_IDEAS = ["Friends", "The Office", "Harry Potter", "Marvel's Avengers", "3 Idiots", "Taarak Mehta Ka Ooltah Chashmah"];
 
@@ -49,6 +49,7 @@ function ChooseMode() {
   const { me, reload } = useMe();
   const [prefs, setPrefs] = useState<Prefs>(me!.prefs);
   const [step, setStep] = useState<"mode" | "read" | "listen">("mode");
+  const VOICES_ON = useVoicesOn();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const save = async (next: Prefs) => {

@@ -12,6 +12,7 @@ import { MemoryStore } from "../supabase/functions/api/src/store.ts";
 import { costOf } from "../supabase/functions/api/src/budget.ts";
 import { lessonSession } from "../supabase/functions/api/src/prompts.ts";
 import { boardName, plausibleRun, weekStart } from "../supabase/functions/api/src/game.ts";
+import { pickVoices, ssml } from "../supabase/functions/api/src/tts.ts";
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`assertion failed: ${msg}`);
@@ -30,6 +31,7 @@ function setup(overrides: Record<string, string> = {}) {
     now: () => clock,
     aiReady: true as boolean,
     pushFetch: undefined as typeof fetch | undefined,
+    ttsFetch: undefined as typeof fetch | undefined,
   };
   const accepted = new Set<string>();
   const call = async (method: string, path: string, body?: unknown, token = "dev:riya"): Promise<Called> => {
@@ -50,6 +52,7 @@ function setup(overrides: Record<string, string> = {}) {
       const events = (await res.text()).split("\n\n").filter((l) => l.startsWith("data: ")).map((l) => JSON.parse(l.slice(6)));
       return { status: res.status, events, json: events.at(-1), headers: res.headers };
     }
+    if (type.startsWith("audio/")) return { status: res.status, json: { bytes: (await res.arrayBuffer()).byteLength }, events: [], headers: res.headers };
     return { status: res.status, json: await res.json(), events: [], headers: res.headers };
   };
   return {
@@ -193,6 +196,75 @@ Deno.test("game: personal bests, weekly and all-time leaderboards, opting out", 
   await call("DELETE", "/me", undefined, "dev:arjun");
   b = await call("GET", "/game/board");
   assert(b.json.all.rows.length === 1, "deleted learner removed");
+});
+
+/** Stands in for Azure Speech: a voice list, and a few bytes of "audio" per request. */
+function fakeAzure() {
+  const calls: { url: string; headers: Headers; body: string }[] = [];
+  const list = [
+    { ShortName: "en-IN-NeerjaNeural", DisplayName: "Neerja", Gender: "Female", Locale: "en-IN", VoiceType: "Neural" },
+    { ShortName: "en-IN-PrabhatNeural", DisplayName: "Prabhat", Gender: "Male", Locale: "en-IN", VoiceType: "Neural" },
+    { ShortName: "en-US-AvaMultilingualNeural", DisplayName: "Ava Multilingual", Gender: "Female", Locale: "en-US", VoiceType: "Neural" },
+    { ShortName: "en-US-JennyNeural", DisplayName: "Jenny", Gender: "Female", Locale: "en-US", VoiceType: "Neural" },
+    { ShortName: "hi-IN-SwaraNeural", DisplayName: "Swara", Gender: "Female", Locale: "hi-IN", VoiceType: "Neural" },
+    { ShortName: "fr-FR-DeniseNeural", DisplayName: "Denise", Gender: "Female", Locale: "fr-FR", VoiceType: "Neural" },
+  ];
+  const fn = (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, headers: new Headers(init?.headers), body: String(init?.body ?? "") });
+    if (url.endsWith("/voices/list")) return Promise.resolve(new Response(JSON.stringify(list), { headers: { "content-type": "application/json" } }));
+    return Promise.resolve(new Response(new Uint8Array([73, 68, 51, 4]), { headers: { "content-type": "audio/mpeg" } }));
+  };
+  return { fn: fn as typeof fetch, calls };
+}
+
+Deno.test("read-aloud: off without an Azure key; with one, voices, previews and spend limits", async () => {
+  const off = setup();
+  assert((await off.call("GET", "/me")).json.voices.ready === false, "voices off without a key");
+  const none = await off.call("POST", "/tts", { text: "Hello" });
+  assert(none.status === 503 && none.json.code === "voices_off", "calm 'coming soon'");
+
+  const { call, deps } = setup({ AZURE_SPEECH_KEY: "test-key", AZURE_SPEECH_REGION: "Central India", COTSI_USER_DAILY_USD: "0.0001" });
+  const azure = fakeAzure();
+  deps.ttsFetch = azure.fn;
+  assert((await call("GET", "/me")).json.voices.ready === true, "voices on with a key");
+
+  const v = await call("GET", "/tts/voices");
+  const ids = v.json.voices.map((x: { id: string }) => x.id);
+  assert(ids[0] === "en-IN-NeerjaNeural" && ids.includes("hi-IN-SwaraNeural") && !ids.includes("fr-FR-DeniseNeural"), "India first, only English and Hindi");
+  assert(v.json.voices.find((x: { id: string }) => x.id === "en-US-AvaMultilingualNeural").name === "Ava", "tidy names");
+  assert(azure.calls[0].url === "https://centralindia.tts.speech.microsoft.com/cognitiveservices/voices/list", "region from settings");
+
+  // Reading aloud: the key goes to Azure only; text is escaped; spend counts toward the limit.
+  const before = azure.calls.length;
+  const res = await handle(
+    new Request("https://x.supabase.co/functions/v1/api/tts", {
+      method: "POST",
+      headers: { authorization: "Bearer dev:riya", "content-type": "application/json", origin: "https://cotsi.siddheshthapa.com" },
+      body: JSON.stringify({ text: "Profit < cost & 'risk'", voice: "en-IN-PrabhatNeural", rate: 1.2 }),
+    }),
+    deps,
+  );
+  assert(res.status === 200 && res.headers.get("content-type") === "audio/mpeg" && (await res.arrayBuffer()).byteLength === 4, "audio back");
+  const sent = azure.calls[before];
+  assert(sent.headers.get("Ocp-Apim-Subscription-Key") === "test-key" && sent.headers.get("X-Microsoft-OutputFormat")?.includes("mp3"), "headers");
+  assert(sent.body.includes("Profit &lt; cost &amp; &apos;risk&apos;") && sent.body.includes('name="en-IN-PrabhatNeural"') && sent.body.includes('rate="+20%"'), "SSML");
+  assert((await call("GET", "/me")).json.usage.used > 0, "spend recorded");
+
+  // A tiny per-person limit: the next request is refused calmly.
+  await call("POST", "/tts", { text: "x".repeat(1500), voice: "en-IN-NeerjaNeural" });
+  const capped = await call("POST", "/tts", { text: "More please" });
+  assert(capped.status === 429, "daily limit applies to voices");
+
+  // Previews are made once per voice and speed, then shared.
+  const p1 = await call("GET", "/tts/preview?voice=en-IN-NeerjaNeural&rate=1", undefined, "dev:arjun");
+  const made = azure.calls.length;
+  const p2 = await call("GET", "/tts/preview?voice=en-IN-NeerjaNeural&rate=1", undefined, "dev:meera");
+  assert(p1.status === 200 && p2.status === 200 && azure.calls.length === made, "preview cached");
+  assert((await call("GET", "/tts/preview?voice=xx-XX-Nobody&rate=1")).status === 400, "unknown voice refused");
+
+  assert(ssml("Hi", "hi-IN-SwaraNeural", 0.85).includes('xml:lang="hi-IN"') && ssml("Hi", "en-GB-RyanNeural").indexOf("prosody") === -1, "ssml helpers");
+  assert(pickVoices([{ ShortName: "en-GB-LibbyNeural", Locale: "en-GB" }]).length === 1, "falls back to other voices");
 });
 
 Deno.test("review thread uses saved state and reschedules", async () => {

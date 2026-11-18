@@ -148,4 +148,9 @@ export type Env = {
   memberEmails: string[];
   /** Shown to signed-in learners who aren't on the members list. */
   membersOnlyMessage: string;
+  /** Azure Speech (natural read-aloud voices). Empty key: listening mode shows "coming soon". */
+  azureSpeechKey: string;
+  azureSpeechRegion: string;
+  /** What Azure charges per million characters, for the daily spending limits. */
+  ttsUsdPerMillion: number;
 };

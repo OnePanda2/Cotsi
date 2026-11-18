@@ -3,8 +3,7 @@ import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { useAuth } from "../auth";
 import { ReminderControl } from "../components/Reminders";
-import { VoicePicker, VoicesSoon } from "../components/Voice";
-import { VOICES_ON } from "../speech";
+import { useVoicesOn, VoicePicker, VoicesSoon } from "../components/Voice";
 
 /** Matches the API: first name and last initial, e.g. "Riya S." */
 function boardName(full: string): string {
@@ -19,6 +18,7 @@ export function Settings() {
   const { me, reload } = useMe();
   const { signOut } = useAuth();
   const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const VOICES_ON = useVoicesOn();
   const [note, setNote] = useState("");
 
   useEffect(() => {

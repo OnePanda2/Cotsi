@@ -4,7 +4,7 @@ import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { NotReady, useAiReady } from "../components/NotReady";
 import { ShowsPicker } from "../components/LearnMode";
-import { VOICES_ON } from "../speech";
+import { useVoicesOn } from "../components/Voice";
 import type { Prefs, Track } from "../types";
 
 const COPY = {
@@ -35,6 +35,7 @@ export function NewLesson() {
   const [title, setTitle] = useState("");
   const [depth, setDepth] = useState("standard");
   const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const VOICES_ON = useVoicesOn();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 

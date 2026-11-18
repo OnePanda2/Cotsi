@@ -35,6 +35,18 @@ import {
   validTz,
 } from "./engage.ts";
 import type { Store } from "./store.ts";
+import {
+  cleanTtsText,
+  DEFAULT_VOICE,
+  fetchVoiceList,
+  pickVoices,
+  PREVIEW_TEXT,
+  SPEEDS,
+  synthesize,
+  type TtsConfig,
+  ttsCost,
+  type Voice,
+} from "./tts.ts";
 import { type BoardEntry, boardName, boardView, type GameStats, placeOnBoard, plausibleRun, recordRun, removeFromBoard, weekStart } from "./game.ts";
 import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, topicKey } from "./syllabus.ts";
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
@@ -64,6 +76,8 @@ export type Deps = {
   aiReady?: boolean;
   /** How reminders reach browser push services (tests pass a fake). */
   pushFetch?: typeof fetch;
+  /** How read-aloud reaches Azure Speech (tests and the preview pass a fake). */
+  ttsFetch?: typeof fetch;
 };
 
 type UserRecord = {
@@ -328,6 +342,9 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
   if (m === "DELETE" && path === "/me") return deleteMe(user, deps);
   if (m === "PUT" && path === "/prefs") return putPrefs(req, user, deps);
   if (m === "POST" && path === "/game/run") return postRun(req, user, deps);
+  if (m === "GET" && path === "/tts/voices") return getVoices(user, deps);
+  if (m === "GET" && path === "/tts/preview") return getPreview(url, user, deps);
+  if (m === "POST" && path === "/tts") return postTts(req, user, deps);
   if (m === "GET" && path === "/game/board") return getBoard(user, deps);
   if (m === "PUT" && path === "/dream") return putDream(req, user, deps);
   if (m === "PUT" && path === "/terms") return putTerms(req, user, deps);
@@ -380,6 +397,7 @@ async function getMe(url: URL, user: User, deps: Deps): Promise<Response> {
     dream: rec.dream ?? null,
     reminder: rec.reminder ? { on: true, hour: rec.reminder.hour } : { on: false },
     terms: { version: TERMS_VERSION, accepted: rec.terms?.version === TERMS_VERSION },
+    voices: { ready: Boolean(ttsConfig(deps)) },
   });
 }
 
@@ -726,6 +744,110 @@ async function chat(req: Request, id: string, user: User, deps: Deps): Promise<R
     if (text) await countToday(deps, user, rec.tz);
     send({ t: "done", track, sources: result.sources.slice(0, 30), cut: result.stopReason === "max_tokens" });
   });
+}
+
+// ------------------------------------------------------------------ read-aloud voices (Azure)
+
+function ttsConfig(deps: Deps): TtsConfig | null {
+  const { azureSpeechKey: key, azureSpeechRegion: region, ttsUsdPerMillion } = deps.env;
+  return key && region ? { key, region, usdPerMillion: ttsUsdPerMillion } : null;
+}
+
+function requireTts(deps: Deps): TtsConfig {
+  const cfg = ttsConfig(deps);
+  if (!cfg) throw new HttpError(503, "Natural voices are coming very soon.", "voices_off");
+  return cfg;
+}
+
+const VOICES_KEY = "tts:voices";
+// Kept per store, so separate deployments (and tests) never share a list.
+const voiceCaches = new WeakMap<Store, { at: number; voices: Voice[] }>();
+
+/** The voices on offer. Azure's list is fetched at most once a day and shared by everyone. */
+async function offeredVoices(deps: Deps, cfg: TtsConfig): Promise<Voice[]> {
+  const nowMs = now(deps).getTime();
+  const memo = voiceCaches.get(deps.store);
+  if (memo && nowMs - memo.at < 3600_000) return memo.voices;
+  const stored = await deps.store.get<{ at: number; voices: Voice[] }>(GLOBAL_USER, VOICES_KEY);
+  if (stored && nowMs - stored.at < 86400_000 && stored.voices.length) {
+    voiceCaches.set(deps.store, stored);
+    return stored.voices;
+  }
+  let voices: Voice[];
+  try {
+    voices = pickVoices(await fetchVoiceList(cfg, deps.ttsFetch ?? fetch));
+  } catch (err) {
+    console.error("tts voices", err);
+    if (stored?.voices.length) return stored.voices;
+    throw new HttpError(502, "Couldn't load the voices just now. Please try again in a minute.", "voices_error");
+  }
+  const fresh = { at: nowMs, voices };
+  voiceCaches.set(deps.store, fresh);
+  await deps.store.put(GLOBAL_USER, VOICES_KEY, fresh);
+  return voices;
+}
+
+async function getVoices(user: User, deps: Deps): Promise<Response> {
+  const cfg = requireTts(deps);
+  return json({ voices: await offeredVoices(deps, cfg), default: DEFAULT_VOICE });
+}
+
+function audioResponse(audio: Uint8Array<ArrayBuffer>, type: string, cache: string): Response {
+  return new Response(audio, { headers: { "Content-Type": type, "Cache-Control": cache } });
+}
+
+function fromB64(s: string): Uint8Array<ArrayBuffer> {
+  return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+}
+
+function toB64(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+/** Speaks the fixed sample line. Each voice and speed is made once and shared, so previews cost almost nothing. */
+async function getPreview(url: URL, user: User, deps: Deps): Promise<Response> {
+  const cfg = requireTts(deps);
+  const voice = url.searchParams.get("voice") ?? "";
+  const rate = Number(url.searchParams.get("rate") ?? 1);
+  if (!SPEEDS.includes(rate)) throw new HttpError(400, "Unknown speed.");
+  if (!(await offeredVoices(deps, cfg)).some((v) => v.id === voice)) throw new HttpError(400, "Unknown voice.", "bad_voice");
+  const key = `tts-preview:${voice}:${rate}`;
+  const cached = await deps.store.get<{ type: string; b64: string }>(GLOBAL_USER, key);
+  if (cached) return audioResponse(fromB64(cached.b64), cached.type, "private, max-age=86400");
+  const text = PREVIEW_TEXT[voice.startsWith("hi-") ? "hi" : "en"];
+  const out = await synthesizeOrFail(cfg, deps, text, voice, rate);
+  await recordSpend(deps.store, user.id, now(deps), ttsCost(text.length, cfg.usdPerMillion), { ttsChars: text.length });
+  await deps.store.put(GLOBAL_USER, key, { type: out.type, b64: toB64(out.audio) });
+  return audioResponse(out.audio, out.type, "private, max-age=86400");
+}
+
+async function synthesizeOrFail(cfg: TtsConfig, deps: Deps, text: string, voice: string, rate: number) {
+  try {
+    return await synthesize(cfg, deps.ttsFetch ?? fetch, text, voice, rate);
+  } catch (err) {
+    console.error("tts", err);
+    const status = (err as { status?: number }).status;
+    if (status === 429) throw new HttpError(429, "Lots of people are listening right now. Please try again in a moment.", "voices_busy");
+    throw new HttpError(502, "The voice didn't load. Please try again.", "voices_error");
+  }
+}
+
+/** Reads part of a lesson aloud. Counts toward the same daily limits as lessons. */
+async function postTts(req: Request, user: User, deps: Deps): Promise<Response> {
+  const cfg = requireTts(deps);
+  const input = await body<{ text?: unknown; voice?: unknown; rate?: unknown }>(req);
+  const text = cleanTtsText(input.text);
+  if (!text) throw new HttpError(400, "Nothing to read.");
+  const rate = Number(input.rate ?? 1);
+  if (!Number.isFinite(rate) || rate < 0.5 || rate > 2) throw new HttpError(400, "Unknown speed.");
+  const voices = await offeredVoices(deps, cfg);
+  const voice = typeof input.voice === "string" && voices.some((v) => v.id === input.voice) ? input.voice : DEFAULT_VOICE;
+  await requireBudget(deps, user);
+  const out = await synthesizeOrFail(cfg, deps, text, voice, rate);
+  await recordSpend(deps.store, user.id, now(deps), ttsCost(text.length, cfg.usdPerMillion), { ttsChars: text.length });
+  return audioResponse(out.audio, out.type, "private, max-age=3600");
 }
 
 // ------------------------------------------------------------------ game: high scores and leaderboards
