@@ -2865,6 +2865,17 @@ body.has-game .composer {
   font-size: 0.78rem;
 }
 
+.gp-foot {
+  display: grid;
+  gap: 2px;
+}
+
+.gp-soon {
+  margin: 0;
+  color: #c9c0ff;
+  font-size: 0.78rem;
+}
+
 @media (max-width: 899px) {
   .gp-games small {
     display: none;

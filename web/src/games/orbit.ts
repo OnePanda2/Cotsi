@@ -157,26 +157,6 @@ function make(ev: { point(): void; miss(): void }): Game {
       trail.push({ x: mx, y: my });
       if (trail.length > 18) trail.shift();
       trail.forEach((p, i) => drawGlow(ctx, p.x, p.y, "rgba(140,230,255,1)", max * 0.03 * (i / trail.length), (i / trail.length) * 0.4));
-      // Faint arrows beside the moon: out (away from the planet) and in (toward it).
-      const ux = Math.cos(angle);
-      const uy = Math.sin(angle);
-      const chevron = (dirSign: number) => {
-        const d = max * 0.085 * dirSign;
-        const tipX = mx + ux * d;
-        const tipY = my + uy * d;
-        const back = max * 0.025 * dirSign;
-        const wing = max * 0.022;
-        ctx.beginPath();
-        ctx.moveTo(tipX - ux * back - uy * wing, tipY - uy * back + ux * wing);
-        ctx.lineTo(tipX, tipY);
-        ctx.lineTo(tipX - ux * back + uy * wing, tipY - uy * back - ux * wing);
-        ctx.stroke();
-      };
-      ctx.strokeStyle = "rgba(200,240,255,0.45)";
-      ctx.lineWidth = 2;
-      ctx.lineCap = "round";
-      if (ring < 2) chevron(1);
-      if (ring > 0) chevron(-1);
       drawGlow(ctx, mx, my, "rgba(140,230,255,1)", max * 0.13, 0.9);
       ctx.fillStyle = "#f2fdff";
       ctx.beginPath();

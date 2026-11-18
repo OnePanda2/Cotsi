@@ -308,7 +308,10 @@ export function GamePanel({ running, waitingNote, onHide }: { running: boolean; 
           </div>
         )}
       </div>
-      <p className="gp-help">{def.help}</p>
+      <div className="gp-foot">
+        <p className="gp-help">{def.help}</p>
+        <p className="gp-soon">✨ More games soon. Keep learning!</p>
+      </div>
       {showBoard && createPortal(<Leaderboard def={def} board={board} onClose={() => setShowBoard(false)} />, document.body)}
     </section>
   );

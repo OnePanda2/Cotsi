@@ -147,7 +147,9 @@ function make(ev: { point(): void; miss(): void }): Game {
           ctx.arc(p.x, p.y - r, r * 0.45, 0, TAU);
           ctx.fill();
         } else {
-          drawGlow(ctx, p.x, p.y - r, "rgba(120,240,255,0.9)", r * 3.5, 0.6 * fade);
+          // Crystals glow blue with a red edge, so they read as "don't touch".
+          drawGlow(ctx, p.x, p.y - r, "rgba(120,240,255,0.9)", r * 3.5, 0.55 * fade);
+          drawGlow(ctx, p.x, p.y - r, "rgba(255,60,80,0.9)", r * 2.6, 0.35 * fade);
           ctx.globalAlpha = fade;
           const g = ctx.createLinearGradient(p.x, p.y - r * 2.4, p.x, p.y);
           g.addColorStop(0, "#d6fbff");
@@ -160,6 +162,10 @@ function make(ev: { point(): void; miss(): void }): Game {
           ctx.lineTo(p.x - r * 0.9, p.y - r * 0.9);
           ctx.closePath();
           ctx.fill();
+          ctx.strokeStyle = "#ff4d63";
+          ctx.lineWidth = Math.max(1.5, r * 0.16);
+          ctx.lineJoin = "round";
+          ctx.stroke();
           ctx.globalAlpha = 1;
         }
       }
