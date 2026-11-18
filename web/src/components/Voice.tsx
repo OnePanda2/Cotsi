@@ -102,7 +102,7 @@ export function VoicePicker({
           ))}
         </div>
       </fieldset>
-      <p className="fine">Natural voices from Microsoft Azure. Listening counts toward your daily usage, like lessons do.</p>
+      <p className="fine">Natural voices from OpenAI. Listening counts toward your daily usage, like lessons do.</p>
     </div>
   );
 }

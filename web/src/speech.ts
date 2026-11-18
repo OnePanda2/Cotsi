@@ -1,24 +1,22 @@
-// Read-aloud for listening mode, with natural voices from Microsoft Azure. The browser sends
-// text to the Cotsi server, which asks Azure for the audio (the Azure key never reaches the
-// browser) and counts the cost toward the learner's daily limit.
+// Read-aloud for listening mode, with natural voices from OpenAI. The browser sends text to the
+// Cotsi server, which asks OpenAI for the audio (the key never reaches the browser) and counts
+// the cost toward the learner's daily limit.
 
 import { apiAudio, ApiError } from "./api";
 import { parseReply } from "./components/Rich";
 
-export type VoiceGroup = "en-IN" | "en-US" | "en-GB" | "hi-IN";
+export type VoiceGroup = "en-IN" | "en-US";
 export type Voice = { id: string; name: string; gender: string; group: VoiceGroup };
 
 export const GROUP_LABEL: Record<VoiceGroup, string> = {
-  "en-IN": "English (India)",
-  "en-US": "English (US)",
-  "en-GB": "English (UK)",
-  "hi-IN": "Hindi",
+  "en-IN": "Indian accent",
+  "en-US": "American accent",
 };
-export const DEFAULT_VOICE = "en-IN-NeerjaNeural";
+export const DEFAULT_VOICE = "marin-in";
 
-/** Saved voices from before natural voices ("device:…") fall back to the default. */
+/** Voices saved before natural voices (device or other ids) fall back to the default. */
 export function voiceOrDefault(id?: string): string {
-  return id && /^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/.test(id) ? id : DEFAULT_VOICE;
+  return id && /^[a-z]+-(in|us)$/.test(id) ? id : DEFAULT_VOICE;
 }
 
 // ------------------------------------------------------------------ turning a reply into speech

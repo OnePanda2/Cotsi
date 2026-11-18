@@ -28,19 +28,8 @@ env.userDailyUsd = 1000;
 env.jobAnalysesPerDay = 1000;
 env.memberEmails = ["*"];
 
-// Natural voices: a stand-in for Azure that lists real voice names and returns a short silent clip.
-env.azureSpeechKey = "preview";
-env.azureSpeechRegion = "centralindia";
-const PREVIEW_VOICES = [
-  ["en-IN-NeerjaNeural", "Neerja", "Female", "en-IN"],
-  ["en-IN-PrabhatNeural", "Prabhat", "Male", "en-IN"],
-  ["en-US-AvaMultilingualNeural", "Ava Multilingual", "Female", "en-US"],
-  ["en-US-AndrewMultilingualNeural", "Andrew Multilingual", "Male", "en-US"],
-  ["en-GB-SoniaNeural", "Sonia", "Female", "en-GB"],
-  ["en-GB-RyanNeural", "Ryan", "Male", "en-GB"],
-  ["hi-IN-SwaraNeural", "Swara", "Female", "hi-IN"],
-  ["hi-IN-MadhurNeural", "Madhur", "Male", "hi-IN"],
-].map(([ShortName, DisplayName, Gender, Locale]) => ({ ShortName, DisplayName, Gender, Locale, VoiceType: "Neural" }));
+// Natural voices: a stand-in for OpenAI that returns a short silent clip.
+env.openaiApiKey = "preview";
 
 function silentWav(seconds: number): Uint8Array<ArrayBuffer> {
   const rate = 8000;
@@ -55,10 +44,8 @@ function silentWav(seconds: number): Uint8Array<ArrayBuffer> {
   return new Uint8Array(buf);
 }
 
-const fakeAzure = ((input: RequestInfo | URL, init?: RequestInit) => {
-  const url = String(input);
-  if (url.endsWith("/voices/list")) return Promise.resolve(new Response(JSON.stringify(PREVIEW_VOICES)));
-  const words = String(init?.body ?? "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+const fakeSpeech = ((_input: RequestInfo | URL, init?: RequestInit) => {
+  const words = String(JSON.parse(String(init?.body ?? "{}")).input ?? "").split(/\s+/).filter(Boolean).length;
   return new Promise<Response>((resolve) =>
     setTimeout(() => resolve(new Response(silentWav(Math.min(20, 0.35 * words)), { headers: { "content-type": "audio/wav" } })), 300),
   );
@@ -67,7 +54,7 @@ const fakeAzure = ((input: RequestInfo | URL, init?: RequestInit) => {
 const deps = {
   env,
   store,
-  ttsFetch: fakeAzure,
+  ttsFetch: fakeSpeech,
   claude: makeMockClaude(10, 900),
   verifyToken: (token: string) =>
     Promise.resolve(token.startsWith("dev:") ? { id: "preview", email: "riya@example.com", name: "Riya Sharma" } : null),
