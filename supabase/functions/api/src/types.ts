@@ -180,4 +180,7 @@ export type Env = {
   ttsModel: string;
   /** About what OpenAI charges per million characters read, for the daily spending limits. */
   ttsUsdPerMillion: number;
+  /** Optional keys for the Hindi and Marathi voice comparison page. */
+  sarvamApiKey: string;
+  googleTtsApiKey: string;
 };

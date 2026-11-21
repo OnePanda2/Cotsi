@@ -13,6 +13,7 @@ import { Terms } from "./pages/Terms";
 import { AcceptTerms } from "./components/AcceptTerms";
 import { LearnModeGate } from "./components/LearnMode";
 import { reader, voiceOrDefault } from "./speech";
+import { VoiceTest } from "./pages/VoiceTest";
 import { Settings } from "./pages/Settings";
 import { TrackPage } from "./pages/TrackPage";
 import { getItem, removeItem, setItem } from "./storage";
@@ -195,6 +196,7 @@ export function App() {
           <Route path="/t/:id" element={<SignedIn><TrackPage /></SignedIn>} />
           <Route path="/job" element={<SignedIn><Job /></SignedIn>} />
           <Route path="/settings" element={<SignedIn><Settings /></SignedIn>} />
+          <Route path="/voice-test" element={<SignedIn><VoiceTest /></SignedIn>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Shell>

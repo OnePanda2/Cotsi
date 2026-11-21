@@ -3192,3 +3192,85 @@ body.has-game .composer {
 .segmented button[lang] b {
   font-size: 1.02rem;
 }
+
+/* ---------- voice test (choosing Hindi and Marathi voices) ---------- */
+
+.voice-test {
+  display: grid;
+  gap: 18px;
+}
+
+.vt-lang {
+  display: grid;
+  gap: 10px;
+}
+
+.vt-lang h2 {
+  margin: 0;
+  font: 400 1.4rem / 1.2 var(--serif);
+}
+
+.vt-sample {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #d9d4ec;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.vt-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.vt-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+}
+
+.vt-row.off {
+  opacity: 0.55;
+}
+
+.vt-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vt-name small,
+.vt-voice,
+.vt-error {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
+.vt-error {
+  color: #ffb4b4;
+}
+
+.vt-cell {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  max-width: 120px;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .vt-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .vt-name {
+    grid-column: 1 / -1;
+  }
+}

@@ -47,7 +47,13 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
 }
 
 /** Like api(), for replies that are audio (read-aloud). */
-export async function apiAudio(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<Blob> {
+export async function apiAudio(
+  method: string,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  onHeaders?: (h: Headers) => void,
+): Promise<Blob> {
   let res: Response;
   try {
     res = await fetch(config.apiUrl + path, {
@@ -62,6 +68,7 @@ export async function apiAudio(method: string, path: string, body?: unknown, sig
     throw new ApiError("Couldn't reach Cotsi. Check your connection and try again.", 0);
   }
   if (!res.ok) return fail(res);
+  onHeaders?.(res.headers);
   return await res.blob();
 }
 

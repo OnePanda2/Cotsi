@@ -51,6 +51,7 @@ import {
   weekStart,
 } from "./game.ts";
 import { cleanOutline, outlineFromMap, outlineSystem, OUTLINE_SCHEMA, outlineUser, partOf, setOutline } from "./outline.ts";
+import { clipCostUsd, type CompareKeys, configured, type Gender, makeClip, PROVIDERS, type Provider, SAMPLES } from "./voicetest.ts";
 import { describeImage, imageNote, readImage, type SharedImage } from "./vision.ts";
 import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, topicKey } from "./syllabus.ts";
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
@@ -352,6 +353,8 @@ async function route(req: Request, path: string, url: URL, user: User, deps: Dep
   if (m === "GET" && path === "/tts/voices") return Promise.resolve(getVoices(user, deps));
   if (m === "GET" && path === "/tts/preview") return getPreview(url, user, deps);
   if (m === "POST" && path === "/tts") return postTts(req, user, deps);
+  if (m === "GET" && path === "/tts/compare") return getCompare(user, deps);
+  if (m === "GET" && path === "/tts/compare/clip") return getCompareClip(url, user, deps);
   if (m === "GET" && path === "/game/board") return getBoard(url, user, deps);
   if (m === "PUT" && path === "/dream") return putDream(req, user, deps);
   if (m === "PUT" && path === "/terms") return putTerms(req, user, deps);
@@ -916,6 +919,53 @@ async function synthesizeOrFail(cfg: TtsConfig, deps: Deps, text: string, voice:
     if (status === 429) throw new HttpError(429, "Lots of people are listening right now. Please try again in a moment.", "voices_busy");
     throw new HttpError(502, "The voice didn't load. Please try again.", "voices_error");
   }
+}
+
+function compareKeys(deps: Deps): CompareKeys {
+  const e = deps.env;
+  return { openai: e.openaiApiKey, sarvam: e.sarvamApiKey, google: e.googleTtsApiKey, ttsModel: e.ttsModel };
+}
+
+/** The voice comparison page: which providers are set up, and the sample text. */
+async function getCompare(user: User, deps: Deps): Promise<Response> {
+  const access = aiAccess(deps, user, await loadUser(deps, user));
+  if (!access.ready) throw new HttpError(403, access.message, access.code);
+  return json({ providers: configured(compareKeys(deps)), samples: SAMPLES });
+}
+
+/** One sample clip, made once and kept for everyone who listens. */
+async function getCompareClip(url: URL, user: User, deps: Deps): Promise<Response> {
+  const p = url.searchParams.get("provider") as Provider;
+  const lang = langOf(url.searchParams.get("lang"));
+  const g = url.searchParams.get("gender") as Gender;
+  if (!PROVIDERS.includes(p) || !lang || (g !== "female" && g !== "male")) throw new HttpError(400, "Unknown sample.");
+  const access = aiAccess(deps, user, await loadUser(deps, user));
+  if (!access.ready) throw new HttpError(403, access.message, access.code);
+  const keys = compareKeys(deps);
+  if (!configured(keys)[p]) throw new HttpError(503, "This voice provider isn't set up yet.", "not_set_up");
+  const key = `tts-compare:${p}:${lang}:${g}`;
+  const cached = await deps.store.get<{ type: string; b64: string; voice: string }>(GLOBAL_USER, key);
+  const headers = (voice: string) => ({ "x-voice": voice, "access-control-expose-headers": "x-voice" });
+  if (cached) {
+    const res = audioResponse(fromB64(cached.b64), cached.type, "private, max-age=3600");
+    for (const [k, v] of Object.entries(headers(cached.voice))) res.headers.set(k, v);
+    return res;
+  }
+  await requireBudget(deps, user);
+  let clip;
+  try {
+    clip = await makeClip(keys, deps.ttsFetch ?? fetch, p, lang, g);
+  } catch (err) {
+    console.error("tts compare", err);
+    const status = (err as { status?: number }).status;
+    const why = status === 401 || status === 403 ? "the key was refused" : status === 404 ? "it has no voice for this language" : "it didn't respond properly";
+    throw new HttpError(502, `This sample didn't load: ${why}.`, "voices_error");
+  }
+  await recordSpend(deps.store, user.id, now(deps), clipCostUsd(p, lang, deps.env.ttsUsdPerMillion), { ttsChars: SAMPLES[lang].length });
+  await deps.store.put(GLOBAL_USER, key, { type: clip.type, b64: toB64(clip.audio), voice: clip.voice });
+  const res = audioResponse(clip.audio, clip.type, "private, max-age=3600");
+  for (const [k, v] of Object.entries(headers(clip.voice))) res.headers.set(k, v);
+  return res;
 }
 
 /** Reads part of a lesson aloud. Counts toward the same daily limits as lessons. */

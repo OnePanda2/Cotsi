@@ -30,6 +30,8 @@ env.memberEmails = ["*"];
 
 // Natural voices: a stand-in for OpenAI that returns a short silent clip.
 env.openaiApiKey = "preview";
+env.sarvamApiKey = "preview";
+env.googleTtsApiKey = "preview";
 
 function silentWav(seconds: number): Uint8Array<ArrayBuffer> {
   const rate = 8000;
@@ -44,7 +46,23 @@ function silentWav(seconds: number): Uint8Array<ArrayBuffer> {
   return new Uint8Array(buf);
 }
 
-const fakeSpeech = ((_input: RequestInfo | URL, init?: RequestInit) => {
+function toBase64(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+
+const fakeSpeech = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = String(input);
+  // The voice comparison page: stand-ins for Sarvam and Google.
+  if (url.includes("sarvam")) return Promise.resolve(Response.json({ audios: [toBase64(silentWav(4))] }));
+  if (url.includes("/v1/voices")) {
+    const lang = url.includes("mr-IN") ? "mr-IN" : "hi-IN";
+    return Promise.resolve(
+      Response.json({ voices: [{ name: `${lang}-Chirp3-HD-Aoede`, ssmlGender: "FEMALE", languageCodes: [lang] }, { name: `${lang}-Chirp3-HD-Charon`, ssmlGender: "MALE", languageCodes: [lang] }] }),
+    );
+  }
+  if (url.includes("text:synthesize")) return Promise.resolve(Response.json({ audioContent: toBase64(silentWav(4)) }));
   const words = String(JSON.parse(String(init?.body ?? "{}")).input ?? "").split(/\s+/).filter(Boolean).length;
   return new Promise<Response>((resolve) =>
     setTimeout(() => resolve(new Response(silentWav(Math.min(20, 0.35 * words)), { headers: { "content-type": "audio/wav" } })), 300),

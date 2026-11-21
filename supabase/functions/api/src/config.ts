@@ -36,6 +36,8 @@ export function readEnv(get: (name: string) => string | undefined): Env {
     ttsModel: get("COTSI_TTS_MODEL") || "gpt-4o-mini-tts",
     // gpt-4o-mini-tts is about $0.015 per minute of speech, roughly 900 characters.
     ttsUsdPerMillion: num(get("COTSI_TTS_USD_PER_MILLION"), 17),
+    sarvamApiKey: (get("SARVAM_API_KEY") ?? "").trim(),
+    googleTtsApiKey: (get("GOOGLE_TTS_API_KEY") ?? "").trim(),
     membersOnlyMessage:
       get("COTSI_MEMBERS_ONLY_MESSAGE") ||
       "Cotsi is open to founding members first. Your account is ready, and lessons and CV analysis unlock as soon as your founding spot is confirmed. Get a spot at early.siddheshthapa.com/cotsi",

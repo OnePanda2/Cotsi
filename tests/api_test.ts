@@ -329,6 +329,48 @@ Deno.test("lessons in Hindi or Marathi: setting, prompt, overview and voice", as
   assert(prev.status === 200 && /Marathi/.test(asked[3]), "previews speak the chosen language");
 });
 
+Deno.test("voice comparison: three providers, made once, members only", async () => {
+  const { call, deps } = setup();
+  const hits: string[] = [];
+  const b64 = btoa("ID3fakemp3");
+  deps.ttsFetch = ((u: string | URL, init?: RequestInit) => {
+    const url = String(u);
+    hits.push(url);
+    const headers = new Headers(init?.headers);
+    if (url.includes("sarvam")) {
+      const body = JSON.parse(String(init?.body));
+      assert(headers.get("api-subscription-key") === "sk" && body.language_code === "mr-IN" && body.model === "bulbul:v3", "Sarvam request");
+      return Promise.resolve(Response.json({ audios: [b64] }));
+    }
+    if (url.includes("/v1/voices")) {
+      assert(headers.get("X-Goog-Api-Key") === "gk", "Google key header");
+      return Promise.resolve(Response.json({ voices: [
+        { name: "hi-IN-Standard-A", ssmlGender: "FEMALE", languageCodes: ["hi-IN"] },
+        { name: "hi-IN-Chirp3-HD-Aoede", ssmlGender: "FEMALE", languageCodes: ["hi-IN"] },
+        { name: "hi-IN-Chirp3-HD-Charon", ssmlGender: "MALE", languageCodes: ["hi-IN"] },
+      ] }));
+    }
+    if (url.includes("text:synthesize")) return Promise.resolve(Response.json({ audioContent: b64 }));
+    return Promise.resolve(new Response(new Uint8Array(8), { headers: { "content-type": "audio/mpeg" } }));
+  }) as typeof fetch;
+  deps.env.openaiApiKey = "ok";
+  const info = await call("GET", "/tts/compare");
+  assert(info.json.providers.openai && !info.json.providers.sarvam && info.json.samples.mr.includes("चक्रवाढ"), "lists providers and samples");
+  const off = await call("GET", "/tts/compare/clip?provider=sarvam&lang=mr&gender=female");
+  assert(off.status === 503 && off.json.code === "not_set_up", "unset providers say so");
+
+  deps.env.sarvamApiKey = "sk";
+  deps.env.googleTtsApiKey = "gk";
+  const sarvam = await call("GET", "/tts/compare/clip?provider=sarvam&lang=mr&gender=female");
+  assert(sarvam.status === 200 && sarvam.headers.get("x-voice") === "bulbul:v3 · priya", "Sarvam clip");
+  const google = await call("GET", "/tts/compare/clip?provider=google&lang=hi&gender=female");
+  assert(google.status === 200 && google.headers.get("x-voice") === "hi-IN-Chirp3-HD-Aoede", "Google picks its best voice");
+  const before = hits.length;
+  await call("GET", "/tts/compare/clip?provider=google&lang=hi&gender=female", undefined, "dev:other");
+  assert(hits.length === before, "made once, shared");
+  assert((await call("GET", "/tts/compare/clip?provider=x&lang=hi&gender=male")).status === 400, "bad sample rejected");
+});
+
 Deno.test("older lessons reuse their map as the overview, at no cost", async () => {
   const { call } = setup();
   await call("PUT", "/prefs", { style: "plain" });
