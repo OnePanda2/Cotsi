@@ -35,7 +35,7 @@ import {
   validTz,
 } from "./engage.ts";
 import type { Store } from "./store.ts";
-import { cleanTtsText, DEFAULT_VOICE, isVoice, PREVIEW_TEXT, SPEEDS, synthesize, type TtsConfig, ttsCost, VOICES } from "./tts.ts";
+import { cleanTtsText, DEFAULT_VOICE, isVoice, langOf, PREVIEW_TEXT, PREVIEW_TEXTS, SPEEDS, synthesize, type TtsConfig, ttsCost, VOICES } from "./tts.ts";
 import {
   type BoardEntry,
   boardName,
@@ -56,6 +56,7 @@ import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, 
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
 import type {
   CotsiState,
+  Lang,
   Env,
   JobDraft,
   JobPrefs,
@@ -429,6 +430,7 @@ export function cleanPrefs(input: Partial<Prefs>): Prefs {
   const rate = Number(input.rate);
   if (Number.isFinite(rate) && rate >= 0.5 && rate <= 2) prefs.rate = Math.round(rate * 100) / 100;
   if (input.board === false) prefs.board = false;
+  if (input.lang === "hi" || input.lang === "mr") prefs.lang = input.lang;
   return prefs;
 }
 
@@ -491,18 +493,19 @@ async function postOutline(id: string, user: User, deps: Deps): Promise<Response
     setOutline(track.state, fromMap, track.title);
   } else {
     await requireBudget(deps, user);
+    const rec = await loadUser(deps, user);
     const timeout = withTimeout(deps);
     let result: RunResult;
     try {
       result = await deps.claude({
         model: deps.env.modelPlan,
         system: outlineSystem(),
-        messages: [{ role: "user", content: outlineUser(track) }],
+        messages: [{ role: "user", content: outlineUser(track, rec.prefs.lang) }],
         maxTokens: 4000,
         effort: "low",
         jsonSchema: OUTLINE_SCHEMA,
         signal: timeout.signal,
-        mock: `outline:${track.kind}`,
+        mock: `outline:${track.kind}${rec.prefs.lang ? `:${rec.prefs.lang}` : ""}`,
       });
     } finally {
       timeout.clear();
@@ -893,19 +896,20 @@ async function getPreview(url: URL, user: User, deps: Deps): Promise<Response> {
   const rate = Number(url.searchParams.get("rate") ?? 1);
   if (!SPEEDS.includes(rate)) throw new HttpError(400, "Unknown speed.");
   if (!isVoice(voice)) throw new HttpError(400, "Unknown voice.", "bad_voice");
-  const key = `tts-preview:openai:${voice}:${rate}`;
+  const lang = langOf(url.searchParams.get("lang"));
+  const key = `tts-preview:openai:${voice}:${rate}${lang ? `:${lang}` : ""}`;
   const cached = await deps.store.get<{ type: string; b64: string }>(GLOBAL_USER, key);
   if (cached) return audioResponse(fromB64(cached.b64), cached.type, "private, max-age=86400");
-  const text = PREVIEW_TEXT;
-  const out = await synthesizeOrFail(cfg, deps, text, voice, rate);
+  const text = lang ? PREVIEW_TEXTS[lang] : PREVIEW_TEXT;
+  const out = await synthesizeOrFail(cfg, deps, text, voice, rate, lang);
   await recordSpend(deps.store, user.id, now(deps), ttsCost(text.length, cfg.usdPerMillion), { ttsChars: text.length });
   await deps.store.put(GLOBAL_USER, key, { type: out.type, b64: toB64(out.audio) });
   return audioResponse(out.audio, out.type, "private, max-age=86400");
 }
 
-async function synthesizeOrFail(cfg: TtsConfig, deps: Deps, text: string, voice: string, rate: number) {
+async function synthesizeOrFail(cfg: TtsConfig, deps: Deps, text: string, voice: string, rate: number, lang?: Lang) {
   try {
-    return await synthesize(cfg, deps.ttsFetch ?? fetch, text, voice, rate);
+    return await synthesize(cfg, deps.ttsFetch ?? fetch, text, voice, rate, lang);
   } catch (err) {
     console.error("tts", err);
     const status = (err as { status?: number }).status;
@@ -917,14 +921,16 @@ async function synthesizeOrFail(cfg: TtsConfig, deps: Deps, text: string, voice:
 /** Reads part of a lesson aloud. Counts toward the same daily limits as lessons. */
 async function postTts(req: Request, user: User, deps: Deps): Promise<Response> {
   const cfg = requireTts(deps);
-  const input = await body<{ text?: unknown; voice?: unknown; rate?: unknown }>(req);
+  const input = await body<{ text?: unknown; voice?: unknown; rate?: unknown; lang?: unknown }>(req);
   const text = cleanTtsText(input.text);
   if (!text) throw new HttpError(400, "Nothing to read.");
   const rate = Number(input.rate ?? 1);
   if (!Number.isFinite(rate) || rate < 0.5 || rate > 2) throw new HttpError(400, "Unknown speed.");
   const voice = isVoice(input.voice) ? input.voice : DEFAULT_VOICE;
   await requireBudget(deps, user);
-  const out = await synthesizeOrFail(cfg, deps, text, voice, rate);
+  // Hindi or Marathi only when the text is actually in Devanagari; English parts stay English.
+  const lang = /[\u0900-\u097F]/.test(text) ? (langOf(input.lang) ?? "hi") : undefined;
+  const out = await synthesizeOrFail(cfg, deps, text, voice, rate, lang);
   await recordSpend(deps.store, user.id, now(deps), ttsCost(text.length, cfg.usdPerMillion), { ttsChars: text.length });
   return audioResponse(out.audio, out.type, "private, max-age=3600");
 }

@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import { useMe } from "../App";
 import { useAuth } from "../auth";
 import { ReminderControl } from "../components/Reminders";
+import { LanguagePicker } from "../components/LearnMode";
 import { useVoicesOn, VoicePicker, VoicesSoon } from "../components/Voice";
 
 /** Matches the API: first name and last initial, e.g. "Riya S." */
@@ -52,6 +53,11 @@ export function Settings() {
       <h1>Settings</h1>
       <p className="fine">Signed in as {me.user.email}</p>
       <fieldset>
+        <legend>Lesson language</legend>
+        <LanguagePicker prefs={prefs} onChange={setPrefs} />
+        <p className="fine">Cotsi teaches in this language from the next reply. Technical words stay in English.</p>
+      </fieldset>
+      <fieldset>
         <legend>How you learn</legend>
         <div className="segmented">
           <button type="button" className={prefs.mode !== "listen" ? "on" : ""} onClick={() => setPrefs({ ...prefs, mode: "read" })}>
@@ -67,7 +73,11 @@ export function Settings() {
       {prefs.mode === "listen" ? (
         <fieldset>
           <legend>Voice</legend>
-          {VOICES_ON ? <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} /> : <VoicesSoon />}
+          {VOICES_ON ? (
+            <VoicePicker voice={prefs.voice} rate={prefs.rate} lang={prefs.lang ?? ""} onChange={(v) => setPrefs({ ...prefs, ...v })} />
+          ) : (
+            <VoicesSoon />
+          )}
         </fieldset>
       ) : null}
       {prefs.mode === "listen" ? (

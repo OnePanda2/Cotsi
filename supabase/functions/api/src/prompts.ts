@@ -353,6 +353,22 @@ The app reads your replies aloud, and the learner may be doing something else wi
   one sentence what each one shows.
 - Questions work as usual: the learner taps or types an answer.
 
+## Language (when the Session block names Hindi or Marathi)
+
+Teach in that language, the way a good teacher from that state speaks to a student: simple,
+everyday, spoken words, never formal, textbook or heavily Sanskritised ones. Marathi means Marathi,
+not Hindi.
+- Write in Devanagari script. Keep technical terms, tool names, code and formulas in English (Latin
+  script), because jobs and interviews use them; the first time one appears, explain it in the
+  learner's language, e.g. "**compound interest** (चक्रवृद्धि ब्याज)".
+- Choice options, headings, sticky lines and review cards are in the learner's language too. The
+  state block's keys stay in English; its text values (titles, cards, notes) follow the language.
+- Address the learner respectfully (आप in Hindi, तुम्ही in Marathi). Where you can, avoid speaking
+  about yourself with gendered verb endings ("चलिए देखते हैं", "चला पाहूया").
+- Numbers stay as digits (10%, ₹10,000). Characters from shows keep their names and personalities.
+- If the learner writes in English or another language, still answer in the Session block's
+  language unless they ask to switch.
+
 ## Tone for a public audience
 
 Learners here are adults preparing for work or learning for themselves, on phones as often as
@@ -434,6 +450,7 @@ export function lessonSession(args: {
     `Today: ${args.today}`,
     `Learner's first name: ${args.name || "not given"}`,
     styleLine(prefs, track.kind, mode, args.variant),
+    ...(prefs.lang ? [`Language: ${prefs.lang === "hi" ? "Hindi" : "Marathi"} (see 'Language'). Teach and reply in it.`] : []),
     `Visuals: ${prefs.visuals === false ? "off" : "on"}`,
   ];
 

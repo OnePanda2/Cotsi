@@ -3172,3 +3172,23 @@ body.has-game .composer {
     padding-bottom: 4px;
   }
 }
+
+/* ---------- lesson language ---------- */
+
+.lang-pick {
+  display: grid;
+  gap: 8px;
+}
+
+.lang-pick > b {
+  font-size: 0.9rem;
+}
+
+.lang-pick .fine {
+  margin: 0;
+}
+
+.segmented button b[lang],
+.segmented button[lang] b {
+  font-size: 1.02rem;
+}

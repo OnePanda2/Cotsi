@@ -147,6 +147,7 @@ export function App() {
   useEffect(() => {
     reader.voice = voiceOrDefault(me?.prefs.voice);
     reader.rate = me?.prefs.rate ?? 1;
+    reader.lang = me?.prefs.lang ?? "";
     if (me && me.prefs.mode !== "listen") reader.stop();
   }, [me]);
 

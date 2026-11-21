@@ -294,6 +294,41 @@ Deno.test("topics and books: an overview, any page in any order, no tests, optio
   assert((await call("GET", "/me")).json.tracks.find((t: { id: string }) => t.id === book).unit === "chapters", "home counts chapters");
 });
 
+Deno.test("lessons in Hindi or Marathi: setting, prompt, overview and voice", async () => {
+  const { call, deps } = setup();
+  await call("PUT", "/prefs", { style: "plain", lang: "mr" });
+  assert((await call("GET", "/me")).json.prefs.lang === "mr", "Marathi saved");
+  await call("PUT", "/prefs", { style: "plain", lang: "fr" });
+  assert(!(await call("GET", "/me")).json.prefs.lang, "unknown languages fall back to English");
+  await call("PUT", "/prefs", { style: "plain", lang: "hi" });
+
+  const seen: string[] = [];
+  const mock = deps.claude;
+  deps.claude = (opts) => {
+    seen.push(opts.system.map((b) => b.text).join("\n") + JSON.stringify(opts.messages));
+    return mock(opts);
+  };
+  const id = (await call("POST", "/tracks", { kind: "topic", title: "Compound interest" })).json.track.id;
+  const o = (await call("POST", `/tracks/${id}/outline`)).json.track.state.outline;
+  assert(/Hindi \(Devanagari script\)/.test(seen[0]) && o.parts[0].title === "ब्याज पर भी ब्याज", "overview asked for and written in Hindi");
+  const page = await call("POST", `/tracks/${id}/chat`, { thread: "p1" });
+  assert(seen[1].includes("Language: Hindi") && page.events.map((e) => e.d ?? "").join("").includes("चक्रवृद्धि"), "lesson taught in Hindi");
+
+  // Read-aloud: Hindi text is spoken as Hindi (or Marathi); English text stays English.
+  const asked: string[] = [];
+  deps.ttsFetch = ((_u: unknown, init?: RequestInit) => {
+    asked.push(JSON.parse(String(init?.body)).instructions);
+    return Promise.resolve(new Response(new Uint8Array(10), { headers: { "content-type": "audio/mpeg" } }));
+  }) as typeof fetch;
+  deps.env.openaiApiKey = "test";
+  await call("POST", "/tts", { text: "ब्याज पर भी ब्याज।", voice: "marin-in", lang: "hi" });
+  await call("POST", "/tts", { text: "व्याजावरही व्याज.", voice: "marin-in", lang: "mr" });
+  await call("POST", "/tts", { text: "Interest earns interest.", voice: "marin-in", lang: "hi" });
+  assert(/Hindi/.test(asked[0]) && /Marathi/.test(asked[1]) && /Indian accent/.test(asked[2]) && !/Hindi/.test(asked[2]), "voice follows the text's language");
+  const prev = await call("GET", "/tts/preview?voice=marin-in&rate=1&lang=mr");
+  assert(prev.status === 200 && /Marathi/.test(asked[3]), "previews speak the chosen language");
+});
+
 Deno.test("older lessons reuse their map as the overview, at no cost", async () => {
   const { call } = setup();
   await call("PUT", "/prefs", { style: "plain" });

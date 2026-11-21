@@ -3,7 +3,7 @@
 // likes, plus an optional hands-on project page ("build").
 
 import type { SystemBlock } from "./claude.ts";
-import type { CotsiState, Outline, Track } from "./types.ts";
+import type { CotsiState, Lang, Outline, Track } from "./types.ts";
 
 export const MAX_PARTS = 30;
 
@@ -52,7 +52,7 @@ chapters, list the book's main parts or themes in the order the book takes them,
 true. Never invent chapter titles. Leave out the index, acknowledgements and notes. At most 30.
 
 anchor: one plain sentence on what the learner will be able to do or explain by the end, starting
-"By the end, you'll be able to".
+"By the end, you'll be able to" (or the same idea in the learner's language).
 
 project: one plain sentence describing a small hands-on project that puts it into practice, doable
 by a beginner in an hour or two with free tools (e.g. "Build a savings calculator in Google Sheets",
@@ -65,9 +65,14 @@ the closest sensible learning topic.`,
   ];
 }
 
-export function outlineUser(track: Track): string {
-  if (track.kind === "book") return `Book: ${track.title}`;
-  return `Topic: ${track.title}\nNumber of core ideas: ${IDEAS[track.depth ?? "standard"] ?? IDEAS.standard}`;
+const LANG_NAME: Record<Lang, string> = { hi: "Hindi", mr: "Marathi" };
+
+export function outlineUser(track: Track, lang?: Lang): string {
+  const language = lang
+    ? `\nWrite the anchor, titles, gists and project in simple everyday ${LANG_NAME[lang]} (Devanagari script), keeping technical terms in English. For a book, translate the chapter titles and keep the book's own title as it is.`
+    : "";
+  if (track.kind === "book") return `Book: ${track.title}${language}`;
+  return `Topic: ${track.title}\nNumber of core ideas: ${IDEAS[track.depth ?? "standard"] ?? IDEAS.standard}${language}`;
 }
 
 const clip = (v: unknown, n: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);

@@ -42,10 +42,13 @@ function useVoiceList(): { voices: Voice[] | null; error: string } {
 export function VoicePicker({
   voice,
   rate,
+  lang = "",
   onChange,
 }: {
   voice?: string;
   rate?: number;
+  /** Previews speak the lesson language the learner picked. */
+  lang?: "" | "hi" | "mr";
   onChange: (next: { voice?: string; rate: number }) => void;
 }) {
   const { voices, error } = useVoiceList();
@@ -82,7 +85,7 @@ export function VoicePicker({
                     type="button"
                     className="voice-play"
                     aria-label={isPlaying ? `Stop ${v.name}` : `Play a sample of ${v.name}`}
-                    onClick={() => (isPlaying || busy ? reader.stop() : void reader.preview(v.id, speed))}
+                    onClick={() => (isPlaying || busy ? reader.stop() : void reader.preview(v.id, speed, lang))}
                   >
                     {busy ? "…" : isPlaying ? "■" : "▶"}
                   </button>

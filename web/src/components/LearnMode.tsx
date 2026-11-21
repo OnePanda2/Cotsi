@@ -41,6 +41,35 @@ export function ShowsPicker({ prefs, onChange }: { prefs: Prefs; onChange: (p: P
   );
 }
 
+const LANGS: { id: "" | "hi" | "mr"; name: string; native: string }[] = [
+  { id: "", name: "English", native: "English" },
+  { id: "hi", name: "Hindi", native: "हिंदी" },
+  { id: "mr", name: "Marathi", native: "मराठी" },
+];
+
+/** The language lessons are taught in. Technical terms stay in English. */
+export function LanguagePicker({ prefs, onChange }: { prefs: Prefs; onChange: (p: Prefs) => void }) {
+  const current = prefs.lang ?? "";
+  return (
+    <div className="segmented three" role="radiogroup" aria-label="Lesson language">
+      {LANGS.map((l) => (
+        <button
+          type="button"
+          key={l.id || "en"}
+          role="radio"
+          aria-checked={current === l.id}
+          className={current === l.id ? "on" : ""}
+          onClick={() => onChange({ ...prefs, lang: l.id || undefined })}
+          lang={l.id || "en"}
+        >
+          <b>{l.native}</b>
+          {l.id && <small>{l.name}</small>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Asked once after sign-up (and once for people who joined before it existed):
  * reading lessons with characters, or listening to them read aloud.
@@ -72,6 +101,11 @@ function ChooseMode() {
         <>
           <h1>How do you like to learn?</h1>
           <p className="lede small">Pick what suits you. You can switch any time in Settings.</p>
+          <div className="lang-pick">
+            <b>Teach me in</b>
+            <LanguagePicker prefs={prefs} onChange={setPrefs} />
+            {prefs.lang && <small className="fine">Technical words stay in English, as they're used at work.</small>}
+          </div>
           <div className="modes">
             <button className="mode-card" onClick={() => setStep("read")}>
               <span className="mode-icon" aria-hidden="true">
@@ -121,7 +155,7 @@ function ChooseMode() {
             <>
               <h1>Choose your voice</h1>
               <p className="lede small">Tap ▶ to hear each one.</p>
-              <VoicePicker voice={prefs.voice} rate={prefs.rate} onChange={(v) => setPrefs({ ...prefs, ...v })} />
+              <VoicePicker voice={prefs.voice} rate={prefs.rate} lang={prefs.lang ?? ""} onChange={(v) => setPrefs({ ...prefs, ...v })} />
             </>
           ) : (
             <>

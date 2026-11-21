@@ -125,6 +125,8 @@ class Reader {
   state: ReaderState = { status: "idle", key: null };
   voice = DEFAULT_VOICE;
   rate = 1;
+  /** The lesson language, so Hindi and Marathi are spoken as Hindi and Marathi. */
+  lang: "" | "hi" | "mr" = "";
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -153,10 +155,10 @@ class Reader {
   }
 
   private audioFor(text: string, path = "/tts", method = "POST"): Promise<string> {
-    const key = `${this.voice}|${this.rate}|${path}|${text}`;
+    const key = `${this.voice}|${this.rate}|${this.lang}|${path}|${text}`;
     const hit = this.cache.get(key);
     if (hit) return hit;
-    const p = (method === "POST" ? apiAudio("POST", path, { text, voice: this.voice, rate: this.rate }) : apiAudio("GET", path)).then((b) =>
+    const p = (method === "POST" ? apiAudio("POST", path, { text, voice: this.voice, rate: this.rate, lang: this.lang || undefined }) : apiAudio("GET", path)).then((b) =>
       URL.createObjectURL(b),
     );
     p.catch(() => this.cache.delete(key));
@@ -197,7 +199,7 @@ class Reader {
   }
 
   /** Plays the fixed sample for a voice (made once on the server and shared). */
-  async preview(voice: string, rate: number) {
+  async preview(voice: string, rate: number, lang: "" | "hi" | "mr" = this.lang) {
     this.stop();
     const gen = ++this.gen;
     const key = `preview:${voice}`;
@@ -207,7 +209,7 @@ class Reader {
       const prevRate = this.rate;
       this.voice = voice;
       this.rate = rate;
-      const url = this.audioFor("", `/tts/preview?voice=${encodeURIComponent(voice)}&rate=${rate}`, "GET");
+      const url = this.audioFor("", `/tts/preview?voice=${encodeURIComponent(voice)}&rate=${rate}${lang ? `&lang=${lang}` : ""}`, "GET");
       this.voice = prevVoice;
       this.rate = prevRate;
       const src = await url;

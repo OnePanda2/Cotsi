@@ -12,7 +12,11 @@ export type Prefs = {
   rate?: number;
   /** false hides the learner from the game leaderboards. */
   board?: boolean;
+  /** Lessons in Hindi or Marathi; unset means English. */
+  lang?: Lang;
 };
+
+export type Lang = "hi" | "mr";
 
 export type Profile = {
   is_cv: boolean;

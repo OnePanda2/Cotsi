@@ -2,6 +2,8 @@
 // browsers send text here and get audio back.
 // Docs: https://platform.openai.com/docs/guides/text-to-speech
 
+import type { Lang } from "./types.ts";
+
 export type TtsConfig = { key: string; model: string; usdPerMillion: number };
 
 export type VoiceGroup = "en-IN" | "en-US";
@@ -25,13 +27,29 @@ export const MAX_TTS_CHARS = 1500;
 export const PREVIEW_TEXT = "Hi, I'm your Cotsi voice. I'll read your lessons aloud, one idea at a time, so you can follow along easily.";
 export const SPEEDS = [0.85, 1, 1.2];
 
+/** The preview in each lesson language, worded so it suits every voice (Hindi verbs carry gender). */
+export const PREVIEW_TEXTS: Record<Lang, string> = {
+  hi: "नमस्ते! यह Cotsi की आवाज़ है। आपके पाठ एक-एक विचार करके पढ़कर सुनाए जाएँगे, ताकि आप आसानी से समझ सकें।",
+  mr: "नमस्कार! हा Cotsi चा आवाज आहे. तुमचे धडे एकेक कल्पना घेऊन वाचून दाखवले जातील, म्हणजे तुम्हाला सहज समजेल.",
+};
+
+export function langOf(v: unknown): Lang | undefined {
+  return v === "hi" || v === "mr" ? v : undefined;
+}
+
 export function isVoice(id: unknown): id is string {
   return typeof id === "string" && VOICES.some((v) => v.id === id);
 }
 
 /** How the voice should sound: a warm teacher, with the chosen accent and pace. */
-export function instructionsFor(id: string, rate = 1): string {
-  const accent = id.endsWith("-in") ? "Speak English with a natural Indian accent." : "Speak with a neutral American accent.";
+export function instructionsFor(id: string, rate = 1, lang?: Lang): string {
+  const accent = lang === "hi"
+    ? "Speak natural, everyday Hindi like a teacher from India, with correct Hindi pronunciation. Say English technical words the way Indians say them."
+    : lang === "mr"
+      ? "Speak natural, everyday Marathi like a teacher from Maharashtra, with correct Marathi pronunciation (not Hindi). Say English technical words the way Indians say them."
+      : id.endsWith("-in")
+        ? "Speak English with a natural Indian accent."
+        : "Speak with a neutral American accent.";
   const pace = rate < 1 ? " Speak a little slower than usual." : rate > 1 ? " Speak a little faster than usual." : "";
   return `Warm, patient teacher explaining one idea at a time. Calm, clear and friendly. ${accent}${pace}`;
 }
@@ -55,6 +73,7 @@ export async function synthesize(
   text: string,
   voiceId: string,
   rate = 1,
+  lang?: Lang,
 ): Promise<{ audio: Uint8Array<ArrayBuffer>; type: string }> {
   const res = await fetchFn("https://api.openai.com/v1/audio/speech", {
     method: "POST",
@@ -63,7 +82,7 @@ export async function synthesize(
       model: cfg.model,
       voice: voiceId.replace(/-(in|us)$/, ""),
       input: text,
-      instructions: instructionsFor(voiceId, rate),
+      instructions: instructionsFor(voiceId, rate, lang),
       response_format: "mp3",
     }),
     signal: AbortSignal.timeout(30_000),

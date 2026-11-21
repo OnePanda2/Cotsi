@@ -529,6 +529,68 @@ Each doubling is bigger than the last. So ten extra years at the start buy you o
 \`\`\``,
 ];
 
+const OUTLINE_TOPIC_HI = {
+  anchor: "आख़िर में आप समझा पाएँगे कि बचाकर रखा पैसा हर साल पहले से तेज़ी से क्यों बढ़ता है।",
+  parts: [
+    { title: "ब्याज पर भी ब्याज", gist: "कमाया हुआ पैसा भी पैसा कमाने लगता है।" },
+    { title: "रकम से ज़्यादा समय की ताक़त", gist: "जल्दी शुरू करना ज़्यादा पैसा लगाने से बेहतर क्यों है।" },
+    { title: "ब्याज दर दोनों तरफ़ काम करती है", gist: "यही हिसाब क़र्ज़ को आपके ख़िलाफ़ कैसे बढ़ाता है।" },
+  ],
+  project: "Google Sheets में एक बचत कैलकुलेटर बनाइए जो साल-दर-साल आपका पैसा बढ़ता हुआ दिखाए।",
+  approx: false,
+};
+
+const OUTLINE_TOPIC_MR = {
+  anchor: "शेवटी तुम्ही समजावून सांगू शकाल की बाजूला ठेवलेले पैसे दरवर्षी आधीपेक्षा जास्त वेगाने का वाढतात.",
+  parts: [
+    { title: "व्याजावरही व्याज", gist: "कमावलेले पैसेही पैसे कमवायला लागतात." },
+    { title: "रकमेपेक्षा वेळ महत्त्वाचा", gist: "लवकर सुरुवात करणं जास्त पैसे गुंतवण्यापेक्षा का चांगलं." },
+    { title: "व्याजदर दोन्ही बाजूंनी काम करतो", gist: "हेच गणित कर्ज तुमच्याविरुद्ध कसं वाढवतं." },
+  ],
+  project: "Google Sheets मध्ये एक बचत कॅल्क्युलेटर बनवा जो वर्षानुवर्षे तुमचे पैसे वाढताना दाखवेल.",
+  approx: false,
+};
+
+const PART_HI = `इस पेज पर आप समझेंगे कि बचाकर रखा पैसा तेज़ी से क्यों बढ़ता है।
+
+### ब्याज पर भी ब्याज
+
+मान लीजिए आपका बैंक हर साल 10% ब्याज देता है, और आप ₹10,000 जमा करते हैं। एक साल बाद आपके पास ₹11,000 हो जाते हैं।
+
+दूसरे साल बैंक 10% ब्याज **₹11,000** पर देता है, ₹10,000 पर नहीं। यानी पिछले साल का ₹1,000 भी अब कमाने लगता है। इसे **compound interest** (चक्रवृद्धि ब्याज) कहते हैं।
+
+यह ढलान से लुढ़कते बर्फ़ के गोले जैसा है: वह जितना बड़ा होता है, हर चक्कर में उतनी ज़्यादा बर्फ़ उठाता है।
+
+🧠 **याद रखने की लाइन:** साधारण ब्याज जोड़ता है, चक्रवृद्धि ब्याज गुणा करता है।
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"आगे क्या?","options":["और गहराई में","एक और उदाहरण","इसे इस्तेमाल करना सिखाइए","और आसान शब्दों में"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"part_done":true,"cards":[{"q":"साधारण और चक्रवृद्धि ब्याज में क्या फ़र्क़ है?","a":"साधारण ब्याज हर साल वही रकम जोड़ता है; चक्रवृद्धि ब्याज बढ़ती हुई पूरी रकम पर लगता है।"}],"next_review_in_days":1}
+\`\`\``;
+
+const PART_MR = `या पानावर तुम्ही समजून घ्याल की बाजूला ठेवलेले पैसे जास्त वेगाने का वाढतात.
+
+### व्याजावरही व्याज
+
+समजा तुमची बँक दरवर्षी 10% व्याज देते, आणि तुम्ही ₹10,000 ठेवता. एका वर्षानंतर तुमच्याकडे ₹11,000 होतात.
+
+दुसऱ्या वर्षी बँक 10% व्याज **₹11,000** वर देते, ₹10,000 वर नाही. म्हणजे मागच्या वर्षी मिळालेले ₹1,000 सुद्धा आता कमवायला लागतात. याला **compound interest** (चक्रवाढ व्याज) म्हणतात.
+
+हे उतारावरून घरंगळणाऱ्या बर्फाच्या गोळ्यासारखं आहे: तो जितका मोठा होतो, तितका जास्त बर्फ प्रत्येक फेरीत गोळा करतो.
+
+🧠 **लक्षात ठेवण्याची ओळ:** साधं व्याज बेरीज करतं, चक्रवाढ व्याज गुणाकार करतं.
+
+\`\`\`cotsi-choices
+{"questions":[{"text":"पुढे काय?","options":["अजून खोलात","अजून एक उदाहरण","हे कसं वापरायचं ते दाखवा","अजून सोप्या शब्दांत"]}]}
+\`\`\`
+
+\`\`\`cotsi-state
+{"part_done":true,"cards":[{"q":"साधं आणि चक्रवाढ व्याज यात काय फरक आहे?","a":"साधं व्याज दरवर्षी तेवढीच रक्कम जोडतं; चक्रवाढ व्याज वाढत्या संपूर्ण रकमेवर लागतं."}],"next_review_in_days":1}
+\`\`\``;
+
 const PART_MORE = `Sure. Here's another example.
 
 Asha puts ₹1 lakh away at 22. Ravi puts ₹2 lakh away at 32. Both earn 8%. At 60, Asha has about ₹18.6 lakh and Ravi about ₹17.3 lakh. **Asha wins with half the money**, because her ten extra years bought one more doubling.
@@ -607,6 +669,9 @@ function pick(opts: RunOpts): { text: string; sources?: { url: string; title: st
   if (key === "profile") return { text: JSON.stringify(PROFILE) };
   if (key === "outline:topic") return { text: JSON.stringify(OUTLINE_TOPIC) };
   if (key === "outline:book") return { text: JSON.stringify(OUTLINE_BOOK) };
+  if (key === "outline:topic:hi") return { text: JSON.stringify(OUTLINE_TOPIC_HI) };
+  if (key === "outline:topic:mr") return { text: JSON.stringify(OUTLINE_TOPIC_MR) };
+  if (key.startsWith("outline:book:")) return { text: JSON.stringify(OUTLINE_BOOK) };
   if (key === "vision") return { text: VISION };
   if (key === "recommend") return { text: JSON.stringify(RECS) };
   if (key.startsWith("scan:")) {
@@ -628,6 +693,8 @@ function pick(opts: RunOpts): { text: string; sources?: { url: string; title: st
   const n = Number(turn);
   if (mode === "part") {
     if (n > 1) return { text: PART_MORE };
+    if (opts.system.some((b) => b.text.includes("Language: Hindi"))) return { text: PART_HI };
+    if (opts.system.some((b) => b.text.includes("Language: Marathi"))) return { text: PART_MR };
     if (opts.system.some((b) => b.text.includes("Mode: Book chapter page"))) return { text: BOOK_PART };
     return { text: PART_IDEAS[(Number(page) || 1) - 1] ?? PART_IDEAS[1] };
   }

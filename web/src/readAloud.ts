@@ -18,12 +18,15 @@ const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}]/gu
 
 /** One sentence as it should sound: symbols and shorthand turned into words. */
 export function speakable(s: string): string {
+  // Hindi and Marathi sentences say "रुपये" and "लगभग", not the English words.
+  const indic = /[\u0900-\u097F]/.test(s);
+  const rupees = indic ? "रुपये" : "rupees";
   return s
     .replace(EMOJI, "")
-    .replace(/[→⟶]/g, " to ")
-    .replace(/≈/g, " about ")
-    .replace(/₹\s?(\d+(?:,\d+)*(?:\.\d+)?(?:\s?(?:lakh|lakhs|crore|crores|thousand)\b)?)/gi, "$1 rupees")
-    .replace(/₹/g, " rupees ")
+    .replace(/[→⟶]/g, indic ? " से " : " to ")
+    .replace(/≈/g, indic ? " लगभग " : " about ")
+    .replace(/₹\s?(\d+(?:,\d+)*(?:\.\d+)?(?:\s?(?:lakh|lakhs|crore|crores|thousand)\b)?)/gi, `$1 ${rupees}`)
+    .replace(/₹/g, ` ${rupees} `)
     .replace(/^(\d+)\/(\d+)\s*·\s*/g, "Part $1 of $2. ")
     .replace(/\s*·\s*/g, ", ")
     .replace(/https?:\/\/\S+/g, "a link")
