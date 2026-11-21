@@ -316,17 +316,32 @@ Deno.test("lessons in Hindi or Marathi: setting, prompt, overview and voice", as
 
   // Read-aloud: Hindi text is spoken as Hindi (or Marathi); English text stays English.
   const asked: string[] = [];
-  deps.ttsFetch = ((_u: unknown, init?: RequestInit) => {
-    asked.push(JSON.parse(String(init?.body)).instructions);
+  const sarvam: { speaker: string; text: string }[] = [];
+  deps.ttsFetch = ((u: unknown, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    if (String(u).includes("sarvam")) {
+      sarvam.push(body);
+      return Promise.resolve(Response.json({ audios: [btoa("ID3mp3")] }));
+    }
+    asked.push(body.instructions);
     return Promise.resolve(new Response(new Uint8Array(10), { headers: { "content-type": "audio/mpeg" } }));
   }) as typeof fetch;
   deps.env.openaiApiKey = "test";
   await call("POST", "/tts", { text: "ब्याज पर भी ब्याज।", voice: "marin-in", lang: "hi" });
-  await call("POST", "/tts", { text: "व्याजावरही व्याज.", voice: "marin-in", lang: "mr" });
-  await call("POST", "/tts", { text: "Interest earns interest.", voice: "marin-in", lang: "hi" });
-  assert(/Hindi/.test(asked[0]) && /Marathi/.test(asked[1]) && /Indian accent/.test(asked[2]) && !/Hindi/.test(asked[2]), "voice follows the text's language");
+  await call("POST", "/tts", { text: "Interest earns interest.", voice: "marin-in", lang: "mr" });
+  assert(/Hindi/.test(asked[0]) && /Indian accent/.test(asked[1]) && !/Hindi|Marathi/.test(asked[1]), "voice follows the text's language");
+
+  // Marathi never goes to OpenAI: it waits for Sarvam (or Google).
+  const soon = await call("POST", "/tts", { text: "व्याजावरही व्याज.", voice: "marin-in", lang: "mr" });
+  assert(soon.status === 503 && soon.json.code === "voices_off_lang" && asked.length === 2, "no Marathi voice yet, and OpenAI isn't used");
+  assert((await call("GET", "/tts/voices")).json.marathi === false, "the app knows Marathi isn't ready");
+  deps.env.sarvamApiKey = "sk";
+  const mr = await call("POST", "/tts", { text: "व्याजावरही व्याज.", voice: "cedar-in", lang: "mr" });
+  assert(mr.status === 200 && sarvam[0].speaker === "shubh" && sarvam[0].text === "व्याजावरही व्याज." && asked.length === 2, "Marathi goes to Sarvam, male voice kept");
   const prev = await call("GET", "/tts/preview?voice=marin-in&rate=1&lang=mr");
-  assert(prev.status === 200 && /Marathi/.test(asked[3]), "previews speak the chosen language");
+  assert(prev.status === 200 && sarvam[1].speaker === "priya", "Marathi previews use Sarvam too");
+  const hiPrev = await call("GET", "/tts/preview?voice=marin-in&rate=1&lang=hi");
+  assert(hiPrev.status === 200 && /Hindi/.test(asked[2]), "Hindi previews stay with OpenAI");
 });
 
 Deno.test("voice comparison: three providers, made once, members only", async () => {

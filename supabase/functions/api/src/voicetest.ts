@@ -61,15 +61,16 @@ async function openai(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Gender)
   return { audio: new Uint8Array(await res.arrayBuffer()), type: "audio/mpeg", voice: `${keys.ttsModel} · ${id.replace(/-in$/, "")}` };
 }
 
-async function sarvam(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Gender): Promise<Clip> {
+async function sarvam(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Gender, text = SAMPLES[lang], rate = 1): Promise<Clip> {
   const res = await f("https://api.sarvam.ai/text-to-speech", {
     method: "POST",
     headers: { "api-subscription-key": keys.sarvam, "Content-Type": "application/json" },
     body: JSON.stringify({
-      text: SAMPLES[lang],
+      text,
       language_code: LOCALE[lang],
       speaker: SARVAM_SPEAKER[g],
       model: "bulbul:v3",
+      pace: rate,
       speech_sample_rate: 24000,
       output_audio_codec: "mp3",
     }),
@@ -82,8 +83,12 @@ async function sarvam(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Gender)
   return { audio, type: sniff(audio), voice: `bulbul:v3 · ${SARVAM_SPEAKER[g]}` };
 }
 
+const googleVoices = new Map<string, string>();
+
 /** Google's best voice for the language: Chirp 3 HD if there is one, then Neural2, WaveNet, Standard. */
 async function googleVoice(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Gender): Promise<string> {
+  const known = googleVoices.get(`${lang}:${g}`);
+  if (known) return known;
   const res = await f(`https://texttospeech.googleapis.com/v1/voices?languageCode=${LOCALE[lang]}`, {
     headers: { "X-Goog-Api-Key": keys.google },
     signal: AbortSignal.timeout(20_000),
@@ -96,15 +101,16 @@ async function googleVoice(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Ge
     .filter((v) => v.languageCodes?.includes(LOCALE[lang]) && v.ssmlGender === wanted && rank(v.name) >= 0)
     .sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
   if (!voices.length) throw Object.assign(new Error(`Google has no ${g} ${LOCALE[lang]} voice`), { status: 404 });
+  googleVoices.set(`${lang}:${g}`, voices[0].name);
   return voices[0].name;
 }
 
-async function google(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Gender): Promise<Clip> {
+async function google(keys: CompareKeys, f: typeof fetch, lang: Lang, g: Gender, text = SAMPLES[lang], rate = 1): Promise<Clip> {
   const name = await googleVoice(keys, f, lang, g);
   const res = await f("https://texttospeech.googleapis.com/v1/text:synthesize", {
     method: "POST",
     headers: { "X-Goog-Api-Key": keys.google, "Content-Type": "application/json" },
-    body: JSON.stringify({ input: { text: SAMPLES[lang] }, voice: { languageCode: LOCALE[lang], name }, audioConfig: { audioEncoding: "MP3" } }),
+    body: JSON.stringify({ input: { text }, voice: { languageCode: LOCALE[lang], name }, audioConfig: { audioEncoding: "MP3", speakingRate: rate } }),
     signal: AbortSignal.timeout(40_000),
   });
   if (!res.ok) await fail(res, "Google");
@@ -121,6 +127,29 @@ export async function makeClip(keys: CompareKeys, f: typeof fetch, p: Provider, 
   if (p === "openai") return await openai(keys, f, lang, g);
   if (p === "sarvam") return await sarvam(keys, f, lang, g);
   return await google(keys, f, lang, g);
+}
+
+// ---- Marathi read-aloud. OpenAI mispronounces Marathi, so Marathi uses Sarvam (built for Indian
+// languages) when its key is set, otherwise Google; with neither, Marathi isn't read aloud yet.
+
+export function marathiProvider(keys: CompareKeys): "sarvam" | "google" | null {
+  return keys.sarvam ? "sarvam" : keys.google ? "google" : null;
+}
+
+/** Cotsi's voices are female (Marin, Coral) or male (Cedar, Ash); Marathi keeps the same kind. */
+export function genderOf(voiceId: string): Gender {
+  return /^(cedar|ash)-/.test(voiceId) ? "male" : "female";
+}
+
+export async function speakMarathi(keys: CompareKeys, f: typeof fetch, text: string, voiceId: string, rate: number): Promise<Clip> {
+  const p = marathiProvider(keys);
+  if (!p) throw Object.assign(new Error("No Marathi voice set up"), { status: 503 });
+  return p === "sarvam" ? await sarvam(keys, f, "mr", genderOf(voiceId), text, rate) : await google(keys, f, "mr", genderOf(voiceId), text, rate);
+}
+
+/** About what the Marathi provider charges for this many characters. */
+export function marathiCostUsd(keys: CompareKeys, chars: number): number {
+  return marathiProvider(keys) === "sarvam" ? (chars * 0.036) / 1000 : (chars * 30) / 1_000_000;
 }
 
 /** Rough cost of one clip, for the daily spending limits (Google's first million characters a month are free). */

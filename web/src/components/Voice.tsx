@@ -23,13 +23,16 @@ export const SPEEDS = [
 
 let voiceList: Voice[] | null = null;
 
+let marathiOn = false;
+
 function useVoiceList(): { voices: Voice[] | null; error: string } {
   const [voices, setVoices] = useState<Voice[] | null>(voiceList);
   const [error, setError] = useState("");
   useEffect(() => {
     if (voiceList) return;
-    api<{ voices: Voice[] }>("GET", "/tts/voices")
+    api<{ voices: Voice[]; marathi?: boolean }>("GET", "/tts/voices")
       .then((d) => {
+        marathiOn = Boolean(d.marathi);
         voiceList = d.voices;
         setVoices(d.voices);
       })
@@ -59,6 +62,14 @@ export function VoicePicker({
 
   if (error) return <p className="notice calm">{error}</p>;
   if (!voices) return <p className="fine">Loading voices…</p>;
+  if (lang === "mr" && !marathiOn) {
+    return (
+      <p className="notice calm">
+        Marathi voices are coming very soon. Until then, Marathi lessons appear as text and the game still plays alongside. Choose Hindi or
+        English to listen now.
+      </p>
+    );
+  }
   const groups = [...new Set(voices.map((v) => v.group))] as VoiceGroup[];
   return (
     <div className="voices">

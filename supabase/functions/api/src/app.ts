@@ -51,7 +51,19 @@ import {
   weekStart,
 } from "./game.ts";
 import { cleanOutline, outlineFromMap, outlineSystem, OUTLINE_SCHEMA, outlineUser, partOf, setOutline } from "./outline.ts";
-import { clipCostUsd, type CompareKeys, configured, type Gender, makeClip, PROVIDERS, type Provider, SAMPLES } from "./voicetest.ts";
+import {
+  clipCostUsd,
+  type CompareKeys,
+  configured,
+  type Gender,
+  makeClip,
+  marathiCostUsd,
+  marathiProvider,
+  PROVIDERS,
+  type Provider,
+  SAMPLES,
+  speakMarathi,
+} from "./voicetest.ts";
 import { describeImage, imageNote, readImage, type SharedImage } from "./vision.ts";
 import { findTopic, hasTopics, isUnlocked, stepStatuses, type SyllabusProgress, topicKey } from "./syllabus.ts";
 import { generateVapidKeys, isPushEndpoint, type PushSubscription, sendPush, type VapidKeys } from "./webpush.ts";
@@ -875,7 +887,7 @@ function requireTts(deps: Deps): TtsConfig {
 
 function getVoices(_user: User, deps: Deps): Response {
   requireTts(deps);
-  return json({ voices: VOICES, default: DEFAULT_VOICE });
+  return json({ voices: VOICES, default: DEFAULT_VOICE, marathi: Boolean(marathiProvider(compareKeys(deps))) });
 }
 
 function audioResponse(audio: Uint8Array<ArrayBuffer>, type: string, cache: string): Response {
@@ -900,11 +912,13 @@ async function getPreview(url: URL, user: User, deps: Deps): Promise<Response> {
   if (!SPEEDS.includes(rate)) throw new HttpError(400, "Unknown speed.");
   if (!isVoice(voice)) throw new HttpError(400, "Unknown voice.", "bad_voice");
   const lang = langOf(url.searchParams.get("lang"));
-  const key = `tts-preview:openai:${voice}:${rate}${lang ? `:${lang}` : ""}`;
+  const mr = lang === "mr" ? marathiProvider(compareKeys(deps)) : null;
+  if (lang === "mr" && !mr) throw new HttpError(503, MARATHI_SOON, "voices_off_lang");
+  const key = `tts-preview:${mr ?? "openai"}:${voice}:${rate}${lang ? `:${lang}` : ""}`;
   const cached = await deps.store.get<{ type: string; b64: string }>(GLOBAL_USER, key);
   if (cached) return audioResponse(fromB64(cached.b64), cached.type, "private, max-age=86400");
   const text = lang ? PREVIEW_TEXTS[lang] : PREVIEW_TEXT;
-  const out = await synthesizeOrFail(cfg, deps, text, voice, rate, lang);
+  const out = mr ? await marathiOrFail(deps, text, voice, rate) : await synthesizeOrFail(cfg, deps, text, voice, rate, lang);
   await recordSpend(deps.store, user.id, now(deps), ttsCost(text.length, cfg.usdPerMillion), { ttsChars: text.length });
   await deps.store.put(GLOBAL_USER, key, { type: out.type, b64: toB64(out.audio) });
   return audioResponse(out.audio, out.type, "private, max-age=86400");
@@ -917,6 +931,17 @@ async function synthesizeOrFail(cfg: TtsConfig, deps: Deps, text: string, voice:
     console.error("tts", err);
     const status = (err as { status?: number }).status;
     if (status === 429) throw new HttpError(429, "Lots of people are listening right now. Please try again in a moment.", "voices_busy");
+    throw new HttpError(502, "The voice didn't load. Please try again.", "voices_error");
+  }
+}
+
+const MARATHI_SOON = "Marathi read-aloud is coming very soon. You can still read the lesson, or listen in Hindi or English.";
+
+async function marathiOrFail(deps: Deps, text: string, voice: string, rate: number) {
+  try {
+    return await speakMarathi(compareKeys(deps), deps.ttsFetch ?? fetch, text, voice, rate);
+  } catch (err) {
+    console.error("tts marathi", err);
     throw new HttpError(502, "The voice didn't load. Please try again.", "voices_error");
   }
 }
@@ -977,9 +1002,17 @@ async function postTts(req: Request, user: User, deps: Deps): Promise<Response> 
   const rate = Number(input.rate ?? 1);
   if (!Number.isFinite(rate) || rate < 0.5 || rate > 2) throw new HttpError(400, "Unknown speed.");
   const voice = isVoice(input.voice) ? input.voice : DEFAULT_VOICE;
-  await requireBudget(deps, user);
   // Hindi or Marathi only when the text is actually in Devanagari; English parts stay English.
   const lang = /[\u0900-\u097F]/.test(text) ? (langOf(input.lang) ?? "hi") : undefined;
+  if (lang === "mr") {
+    const keys = compareKeys(deps);
+    if (!marathiProvider(keys)) throw new HttpError(503, MARATHI_SOON, "voices_off_lang");
+    await requireBudget(deps, user);
+    const clip = await marathiOrFail(deps, text, voice, rate);
+    await recordSpend(deps.store, user.id, now(deps), marathiCostUsd(keys, text.length), { ttsChars: text.length });
+    return audioResponse(clip.audio, clip.type, "private, max-age=3600");
+  }
+  await requireBudget(deps, user);
   const out = await synthesizeOrFail(cfg, deps, text, voice, rate, lang);
   await recordSpend(deps.store, user.id, now(deps), ttsCost(text.length, cfg.usdPerMillion), { ttsChars: text.length });
   return audioResponse(out.audio, out.type, "private, max-age=3600");
